@@ -1,5 +1,5 @@
 // ========================================
-// GOOGLE SHEETS INTEGRATION
+// GOOGLE SHEETS INTEGRATION - NO POINTS SYSTEM
 // ========================================
 
 // Test connection to Google Sheets
@@ -42,10 +42,7 @@ async function loginUser(schoolId, password) {
                 yearLevel: result.yearLevel,
                 section: result.section,
                 subject: result.subject,
-                totalPoints: result.totalPoints || 0,
                 attendanceCount: result.attendanceCount || 0,
-                workoutsCompleted: result.workoutsCompleted || 0,
-                badges: result.badges || [],
                 lastLogin: new Date().toISOString()
             };
             localStorage.setItem("hydrofit_user", JSON.stringify(userData));
@@ -113,107 +110,9 @@ function isLoggedIn() {
 function logoutUser() {
     localStorage.removeItem("hydrofit_user");
     localStorage.removeItem("hydrofit_logged_in");
-    // Also clear any other session data
-    localStorage.removeItem("hydrofit_workout_session");
-    localStorage.removeItem("hydrofit_timer_state");
 }
 
-// Update user points
-async function updateUserPoints(schoolId, pointsToAdd, reason) {
-    try {
-        const formData = new URLSearchParams();
-        formData.append("action", "updatePoints");
-        formData.append("schoolId", schoolId);
-        formData.append("points", pointsToAdd);
-        formData.append("reason", reason);
-        
-        const response = await fetch(GOOGLE_SHEETS_URL, { 
-            method: "POST", 
-            body: formData 
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            // Update local user data
-            const currentUser = getCurrentUser();
-            if (currentUser && currentUser.schoolId === schoolId) {
-                currentUser.totalPoints = result.newPoints;
-                localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
-            }
-            return { success: true, newPoints: result.newPoints };
-        }
-        return { success: false, message: result.message };
-    } catch (error) {
-        console.error("Update points error:", error);
-        return { success: false, message: "Failed to update points" };
-    }
-}
-
-// Record workout completion
-async function recordWorkout(schoolId, workoutName, duration) {
-    try {
-        const formData = new URLSearchParams();
-        formData.append("action", "recordWorkout");
-        formData.append("schoolId", schoolId);
-        formData.append("workoutName", workoutName);
-        formData.append("duration", duration);
-        
-        const response = await fetch(GOOGLE_SHEETS_URL, { 
-            method: "POST", 
-            body: formData 
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            // Update local user data
-            const currentUser = getCurrentUser();
-            if (currentUser && currentUser.schoolId === schoolId) {
-                currentUser.workoutsCompleted = result.workoutsCompleted;
-                currentUser.totalPoints = result.newPoints;
-                localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
-            }
-            return { success: true, message: result.message };
-        }
-        return { success: false, message: result.message };
-    } catch (error) {
-        console.error("Record workout error:", error);
-        return { success: false, message: "Failed to record workout" };
-    }
-}
-
-// Get ranking data
-async function getRankingData() {
-    try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getRanking`);
-        const result = await response.json();
-        
-        if (result.success) {
-            return result.data;
-        }
-        return [];
-    } catch (error) {
-        console.error("Get ranking error:", error);
-        return [];
-    }
-}
-
-// Get user's workout history
-async function getUserWorkouts(schoolId) {
-    try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getUserWorkouts&schoolId=${schoolId}`);
-        const result = await response.json();
-        
-        if (result.success) {
-            return result.data;
-        }
-        return [];
-    } catch (error) {
-        console.error("Get workouts error:", error);
-        return [];
-    }
-}
-
-// Record attendance
+// Record attendance only (no points)
 async function recordAttendance(schoolId) {
     try {
         const formData = new URLSearchParams();
@@ -232,7 +131,6 @@ async function recordAttendance(schoolId) {
             const currentUser = getCurrentUser();
             if (currentUser && currentUser.schoolId === schoolId) {
                 currentUser.attendanceCount = result.attendanceCount;
-                currentUser.totalPoints = result.newPoints;
                 localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
             }
             return { success: true, message: result.message };
@@ -241,5 +139,37 @@ async function recordAttendance(schoolId) {
     } catch (error) {
         console.error("Record attendance error:", error);
         return { success: false, message: "Failed to record attendance" };
+    }
+}
+
+// Get ranking data (by attendance only)
+async function getRankingData() {
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getRanking`);
+        const result = await response.json();
+        
+        if (result.success) {
+            return result.data;
+        }
+        return [];
+    } catch (error) {
+        console.error("Get ranking error:", error);
+        return [];
+    }
+}
+
+// Get user's activity history
+async function getUserActivity(schoolId) {
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getUserActivity&schoolId=${schoolId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            return result.data;
+        }
+        return [];
+    } catch (error) {
+        console.error("Get activity error:", error);
+        return [];
     }
 }

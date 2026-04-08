@@ -1,11 +1,10 @@
 // ========================================
-// HYDROFIT - MAIN APPLICATION
+// HYDROFIT - MAIN APPLICATION (NO POINTS)
 // ========================================
 
 // Global variables
 let currentUser = null;
 let currentTab = "dashboard";
-let workoutChart = null;
 
 // ========================================
 // INITIALIZATION
@@ -39,14 +38,13 @@ function setupEventListeners() {
         registerBtn.addEventListener('click', handleRegister);
     }
     
-    // Switch to Register - IMPORTANT FIX
+    // Switch to Register
     const showRegisterLink = document.getElementById('showRegister');
     if (showRegisterLink) {
         showRegisterLink.addEventListener('click', function(e) {
             e.preventDefault();
             console.log("Switching to register modal");
-            document.getElementById('loginModal').style.display = 'none';
-            document.getElementById('registerModal').style.display = 'flex';
+            showRegisterModal();
         });
     }
     
@@ -56,8 +54,7 @@ function setupEventListeners() {
         showLoginLink.addEventListener('click', function(e) {
             e.preventDefault();
             console.log("Switching to login modal");
-            document.getElementById('registerModal').style.display = 'none';
-            document.getElementById('loginModal').style.display = 'flex';
+            showLoginModal();
         });
     }
     
@@ -80,7 +77,6 @@ function setupEventListeners() {
         btn.addEventListener('click', function() {
             const tab = this.getAttribute('data-tab');
             switchTab(tab);
-            // Close mobile menu on mobile
             if (window.innerWidth <= 768) {
                 document.querySelector('.sidebar').classList.remove('open');
             }
@@ -248,16 +244,6 @@ async function handleRegister() {
     
     if (result.success) {
         showToast('Account created successfully! Please login.', 'success');
-        // Clear form
-        document.getElementById('regFullName').value = '';
-        document.getElementById('regSchoolId').value = '';
-        document.getElementById('regSubject').value = '';
-        document.getElementById('regProgram').value = '';
-        document.getElementById('regYearLevel').value = '';
-        document.getElementById('regSection').value = '';
-        document.getElementById('regPassword').value = '';
-        document.getElementById('regConfirmPassword').value = '';
-        // Show login modal
         showLoginModal();
     } else {
         showToast(result.message, 'error');
@@ -335,9 +321,6 @@ async function loadTabContent(tabName) {
         case 'activity':
             await loadActivity();
             break;
-        case 'timer':
-            loadTimer();
-            break;
         case 'attendance':
             await loadAttendanceTracker();
             break;
@@ -377,29 +360,23 @@ async function loadDashboard() {
     const statsHtml = `
         <div class="card-grid">
             <div class="card">
-                <h3><i class="fas fa-star"></i> Total Points</h3>
-                <div class="flex-between">
-                    <span style="font-size: 2rem; font-weight: 800;">${currentUser.totalPoints || 0}</span>
-                    <i class="fas fa-trophy" style="font-size: 2rem; color: gold;"></i>
-                </div>
-                <div class="progress-bar mt-4">
-                    <div class="progress-fill" style="width: ${Math.min((currentUser.totalPoints / 1000) * 100, 100)}%"></div>
-                </div>
-                <p class="mt-4">Next level: ${1000 - (currentUser.totalPoints % 1000)} points to go</p>
-            </div>
-            
-            <div class="card">
-                <h3><i class="fas fa-dumbbell"></i> Workouts</h3>
-                <div style="font-size: 2rem; font-weight: 800;">${currentUser.workoutsCompleted || 0}</div>
-                <p>Total workouts completed</p>
-                <button class="btn btn-sm mt-4" onclick="switchTab('timer')">Start Workout →</button>
+                <h3><i class="fas fa-user-graduate"></i> Student Info</h3>
+                <div style="font-size: 1.2rem; font-weight: 600;">${escapeHtml(currentUser.fullName)}</div>
+                <p>${currentUser.program} - Year ${currentUser.yearLevel}</p>
+                <p>Section: ${currentUser.section}</p>
             </div>
             
             <div class="card">
                 <h3><i class="fas fa-calendar-check"></i> Attendance</h3>
                 <div style="font-size: 2rem; font-weight: 800;">${currentUser.attendanceCount || 0}</div>
-                <p>Classes attended</p>
-                <button class="btn btn-sm mt-4" onclick="recordTodayAttendance()">Record Today →</button>
+                <p>Total classes attended</p>
+                <button class="btn btn-sm mt-4" onclick="switchTab('attendance')">View Details →</button>
+            </div>
+            
+            <div class="card">
+                <h3><i class="fas fa-qrcode"></i> QR Code</h3>
+                <p>Scan to identify yourself</p>
+                <button class="btn btn-sm mt-4" onclick="showQRCode()">Show QR Code →</button>
             </div>
         </div>
     `;
@@ -408,17 +385,15 @@ async function loadDashboard() {
         <div class="card" style="margin-top: 20px;">
             <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
             <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <button class="btn" onclick="switchTab('timer')"><i class="fas fa-play-circle"></i> Start Workout</button>
-                <button class="btn btn-secondary" onclick="switchTab('warmup')"><i class="fas fa-sun"></i> Warmup</button>
-                <button class="btn btn-secondary" onclick="switchTab('ai-assist')"><i class="fas fa-robot"></i> AI Guide</button>
+                <button class="btn" onclick="recordTodayAttendance()"><i class="fas fa-calendar-plus"></i> Record Attendance</button>
+                <button class="btn btn-secondary" onclick="switchTab('profile')"><i class="fas fa-user"></i> My Profile</button>
+                <button class="btn btn-secondary" onclick="switchTab('ranking')"><i class="fas fa-trophy"></i> View Rankings</button>
                 <button class="btn btn-secondary" onclick="showQRCode()"><i class="fas fa-qrcode"></i> My QR Code</button>
             </div>
         </div>
     `;
     
     container.innerHTML = slideshowHtml + statsHtml + quickActionsHtml;
-    
-    // Initialize slideshow
     initSlideshow();
 }
 
@@ -446,37 +421,33 @@ async function loadProfile() {
                 <p>${currentUser.schoolId}</p>
             </div>
             <div class="info-item">
-                <label>Total Points</label>
-                <p>${currentUser.totalPoints || 0}</p>
+                <label>Program</label>
+                <p>${currentUser.program}</p>
             </div>
             <div class="info-item">
-                <label>Workouts Completed</label>
-                <p>${currentUser.workoutsCompleted || 0}</p>
+                <label>Year Level</label>
+                <p>${currentUser.yearLevel}</p>
             </div>
             <div class="info-item">
-                <label>Attendance Count</label>
+                <label>Section</label>
+                <p>${currentUser.section}</p>
+            </div>
+            <div class="info-item">
+                <label>Subject</label>
+                <p>${currentUser.subject}</p>
+            </div>
+            <div class="info-item">
+                <label>Total Attendance</label>
                 <p>${currentUser.attendanceCount || 0}</p>
             </div>
-            <div class="info-item">
-                <label>Member Since</label>
-                <p>${new Date().toLocaleDateString()}</p>
-            </div>
-        </div>
-        
-        <div class="card mt-4">
-            <h3><i class="fas fa-chart-line"></i> Progress Chart</h3>
-            <canvas id="progressChart"></canvas>
         </div>
     `;
     
     container.innerHTML = profileHtml;
-    
-    // Load progress chart
-    loadProgressChart();
 }
 
 // ========================================
-// RANKING
+// RANKING (by attendance)
 // ========================================
 
 async function loadRanking() {
@@ -485,23 +456,41 @@ async function loadRanking() {
     
     const rankingData = await getRankingData();
     
-    let overallHtml = '<div class="ranking-section"><h3><i class="fas fa-trophy"></i> Overall Rankings</h3><table class="ranking-table"><thead><tr><th>Rank</th><th>Name</th><th>Program</th><th>Points</th><th>Workouts</th></tr></thead><tbody>';
+    let overallHtml = `
+        <div class="ranking-section">
+            <h3><i class="fas fa-trophy"></i> Attendance Rankings</h3>
+            <p style="margin-bottom: 20px; color: var(--primary);">Ranked by total class attendance</p>
+            <table class="ranking-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Name</th>
+                        <th>Program</th>
+                        <th>Attendance</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
     
     rankingData.forEach((student, index) => {
         const rank = index + 1;
-        const rankClass = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+        const rankDisplay = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
         overallHtml += `
             <tr ${student.fullName === currentUser.fullName ? 'style="background: #e3f2fd;"' : ''}>
-                <td>${rankClass}</td>
+                <td><strong>${rankDisplay}</strong></td>
                 <td>${escapeHtml(student.fullName)}</td>
                 <td>${student.program}</td>
-                <td><strong>${student.totalPoints}</strong></td>
-                <td>${student.workoutsCompleted}</td>
+                <td><strong>${student.attendanceCount}</strong> classes</td>
             </tr>
         `;
     });
     
-    overallHtml += '</tbody></table></div>';
+    overallHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
     container.innerHTML = overallHtml;
 }
 
@@ -513,33 +502,31 @@ async function loadActivity() {
     const container = document.getElementById('tab-content');
     container.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading activity...</div>';
     
-    const workouts = await getUserWorkouts(currentUser.schoolId);
+    const activities = await getUserActivity(currentUser.schoolId);
     
     let activityHtml = `
         <div class="card">
             <h3><i class="fas fa-history"></i> Recent Activities</h3>
             <div class="badge-list">
-                <span class="badge">🏋️ Workouts: ${currentUser.workoutsCompleted || 0}</span>
-                <span class="badge">📅 Attendance: ${currentUser.attendanceCount || 0}</span>
-                <span class="badge">⭐ Points: ${currentUser.totalPoints || 0}</span>
+                <span class="badge">📅 Total Attendance: ${currentUser.attendanceCount || 0}</span>
             </div>
         </div>
         <div class="card mt-4">
-            <h3><i class="fas fa-dumbbell"></i> Workout History</h3>
+            <h3><i class="fas fa-list"></i> Activity Log</h3>
     `;
     
-    if (workouts.length === 0) {
-        activityHtml += '<p>No workouts recorded yet. Start your first workout!</p>';
+    if (activities.length === 0) {
+        activityHtml += '<p>No activities recorded yet.</p>';
     } else {
         activityHtml += '<div class="activity-list">';
-        workouts.forEach(workout => {
+        activities.forEach(activity => {
             activityHtml += `
                 <div class="activity-item" style="padding: 12px; border-bottom: 1px solid var(--gray);">
                     <div class="flex-between">
-                        <span><i class="fas fa-check-circle" style="color: var(--success);"></i> ${escapeHtml(workout.activity)}</span>
-                        <span>${new Date(workout.timestamp).toLocaleDateString()}</span>
+                        <span><i class="fas fa-${activity.action === 'Login' ? 'sign-in-alt' : activity.action === 'Attendance' ? 'check-circle' : 'user-plus'}" style="color: var(--primary);"></i> ${activity.action}</span>
+                        <span>${new Date(activity.timestamp).toLocaleDateString()}</span>
                     </div>
-                    <small>+${workout.points} points</small>
+                    <small>${activity.details || ''}</small>
                 </div>
             `;
         });
@@ -548,157 +535,6 @@ async function loadActivity() {
     
     activityHtml += '</div>';
     container.innerHTML = activityHtml;
-}
-
-// ========================================
-// EXERCISE TIMER
-// ========================================
-
-function loadTimer() {
-    const container = document.getElementById('tab-content');
-    
-    const timerHtml = `
-        <div class="card">
-            <h3><i class="fas fa-hourglass-half"></i> Exercise Timer</h3>
-            <div class="timer-inputs">
-                <div class="timer-input-group">
-                    <label>Minutes</label>
-                    <input type="number" id="timerMinutes" value="0" min="0" max="99">
-                </div>
-                <div class="timer-input-group">
-                    <label>Seconds</label>
-                    <input type="number" id="timerSeconds" value="30" min="0" max="59">
-                </div>
-            </div>
-            <div class="timer-display" id="timerDisplay">00:30</div>
-            <div style="display: flex; gap: 12px; justify-content: center;">
-                <button class="btn" id="startTimerBtn"><i class="fas fa-play"></i> Start</button>
-                <button class="btn btn-secondary" id="pauseTimerBtn" disabled><i class="fas fa-pause"></i> Pause</button>
-                <button class="btn btn-secondary" id="resetTimerBtn"><i class="fas fa-redo"></i> Reset</button>
-            </div>
-            <div class="mt-4" style="text-align: center;">
-                <p>Complete a workout to earn <strong>10 points</strong>!</p>
-                <button class="btn" id="completeWorkoutBtn" style="margin-top: 10px;"><i class="fas fa-check-circle"></i> Complete Workout</button>
-            </div>
-        </div>
-    `;
-    
-    container.innerHTML = timerHtml;
-    
-    // Timer variables
-    let timerInterval = null;
-    let timeLeft = 30;
-    let isRunning = false;
-    
-    const minutesInput = document.getElementById('timerMinutes');
-    const secondsInput = document.getElementById('timerSeconds');
-    const timerDisplay = document.getElementById('timerDisplay');
-    const startBtn = document.getElementById('startTimerBtn');
-    const pauseBtn = document.getElementById('pauseTimerBtn');
-    const resetBtn = document.getElementById('resetTimerBtn');
-    const completeBtn = document.getElementById('completeWorkoutBtn');
-    
-    function updateDisplay() {
-        const mins = Math.floor(timeLeft / 60);
-        const secs = timeLeft % 60;
-        timerDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    
-    function getTotalSeconds() {
-        return (parseInt(minutesInput.value) || 0) * 60 + (parseInt(secondsInput.value) || 0);
-    }
-    
-    function startTimer() {
-        if (isRunning) return;
-        const totalSeconds = getTotalSeconds();
-        if (totalSeconds > 0) {
-            timeLeft = totalSeconds;
-            updateDisplay();
-        }
-        isRunning = true;
-        timerInterval = setInterval(() => {
-            if (timeLeft > 0) {
-                timeLeft--;
-                updateDisplay();
-                if (timeLeft === 0) {
-                    stopTimer();
-                    playSound();
-                    showToast('Time is up! Great job!', 'success');
-                }
-            }
-        }, 1000);
-        startBtn.disabled = true;
-        pauseBtn.disabled = false;
-        minutesInput.disabled = true;
-        secondsInput.disabled = true;
-    }
-    
-    function stopTimer() {
-        if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-        }
-        isRunning = false;
-    }
-    
-    function pauseTimer() {
-        stopTimer();
-        startBtn.disabled = false;
-        pauseBtn.disabled = true;
-    }
-    
-    function resetTimer() {
-        stopTimer();
-        minutesInput.disabled = false;
-        secondsInput.disabled = false;
-        const totalSeconds = getTotalSeconds();
-        timeLeft = totalSeconds > 0 ? totalSeconds : 30;
-        updateDisplay();
-        startBtn.disabled = false;
-        pauseBtn.disabled = true;
-    }
-    
-    function playSound() {
-        const audio = document.getElementById('loudBell');
-        if (audio) {
-            audio.play().catch(e => console.log('Audio play failed:', e));
-        }
-    }
-    
-    startBtn.addEventListener('click', startTimer);
-    pauseBtn.addEventListener('click', pauseTimer);
-    resetBtn.addEventListener('click', resetTimer);
-    
-    minutesInput.addEventListener('input', resetTimer);
-    secondsInput.addEventListener('input', resetTimer);
-    
-    // Complete workout button
-    completeBtn.addEventListener('click', async () => {
-        const duration = getTotalSeconds();
-        if (duration === 0) {
-            showToast('Please set a timer duration first', 'warning');
-            return;
-        }
-        
-        completeBtn.disabled = true;
-        completeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Recording...';
-        
-        const result = await recordWorkout(currentUser.schoolId, 'Exercise Timer', duration);
-        
-        if (result.success) {
-            currentUser.workoutsCompleted = result.workoutsCompleted;
-            currentUser.totalPoints = result.newPoints;
-            updateUserDisplay();
-            showToast(result.message, 'success');
-        } else {
-            showToast(result.message, 'error');
-        }
-        
-        completeBtn.disabled = false;
-        completeBtn.innerHTML = '<i class="fas fa-check-circle"></i> Complete Workout';
-    });
-    
-    resetTimer();
 }
 
 // ========================================
@@ -715,7 +551,6 @@ async function loadAttendanceTracker() {
                 <div style="font-size: 4rem; font-weight: 800;">${currentUser.attendanceCount || 0}</div>
                 <p>Total Classes Attended</p>
                 <button class="btn mt-4" id="recordAttendanceBtn"><i class="fas fa-calendar-plus"></i> Record Today's Attendance</button>
-                <p class="mt-4" style="font-size: 0.8rem; color: var(--primary);">Each attendance gives you <strong>15 points</strong>!</p>
             </div>
         </div>
         <div class="card mt-4">
@@ -724,6 +559,7 @@ async function loadAttendanceTracker() {
                 <div class="progress-fill" style="width: ${Math.min((currentUser.attendanceCount / 20) * 100, 100)}%"></div>
             </div>
             <p class="mt-4">Target: 20 attendances per semester</p>
+            <p class="mt-4">🎯 ${20 - (currentUser.attendanceCount || 0)} more to reach target!</p>
         </div>
     `;
     
@@ -746,7 +582,6 @@ async function recordTodayAttendance() {
     
     if (result.success) {
         currentUser.attendanceCount = result.attendanceCount;
-        currentUser.totalPoints = result.newPoints;
         updateUserDisplay();
         showToast(result.message, 'success');
         loadAttendanceTracker();
@@ -771,6 +606,7 @@ async function loadGenericTab(tabName) {
         movement: 'Movement Library',
         'ai-assist': 'AI Exercise Guide',
         scheduler: 'Workout Scheduler',
+        timer: 'Exercise Timer',
         warmup: 'Warmup Generator',
         injury: 'Injury Prevention Guide',
         goals: 'Goal Planner',
@@ -798,7 +634,6 @@ async function loadGenericTab(tabName) {
 // ========================================
 
 function updateUserDisplay() {
-    // Update localStorage
     localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
 }
 
@@ -814,7 +649,6 @@ function showQRCode() {
         program: currentUser.program
     });
     
-    // Use QRCode library
     if (typeof QRCode !== 'undefined') {
         new QRCode(qrContainer, {
             text: qrData,
@@ -831,13 +665,11 @@ function showQRCode() {
 }
 
 function showToast(message, type = 'info') {
-    // Remove existing toast
     const existingToast = document.querySelector('.toast-notification');
     if (existingToast) {
         existingToast.remove();
     }
     
-    // Create toast element
     const toast = document.createElement('div');
     toast.className = 'toast-notification';
     toast.innerHTML = `
@@ -879,45 +711,7 @@ function escapeHtml(str) {
 }
 
 function initSlideshow() {
-    // Placeholder for slideshow functionality
     console.log('Slideshow initialized');
-}
-
-async function loadProgressChart() {
-    const ctx = document.getElementById('progressChart')?.getContext('2d');
-    if (!ctx) return;
-    
-    // Destroy existing chart if any
-    if (workoutChart) {
-        workoutChart.destroy();
-    }
-    
-    workoutChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-            datasets: [{
-                label: 'Points Earned',
-                data: [currentUser.totalPoints ? Math.floor(currentUser.totalPoints * 0.25) : 0, 
-                       currentUser.totalPoints ? Math.floor(currentUser.totalPoints * 0.5) : 0,
-                       currentUser.totalPoints ? Math.floor(currentUser.totalPoints * 0.75) : 0,
-                       currentUser.totalPoints || 0],
-                borderColor: '#00b4d8',
-                backgroundColor: 'rgba(0, 180, 216, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
-        }
-    });
 }
 
 // Make functions global for HTML onclick handlers
