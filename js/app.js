@@ -1,7 +1,6 @@
-// app.js - HYDROFIT with Google Sheets Login/Registration
+// app.js - HYDROFIT Login/Registration
 
 let currentUser = null;
-let slideInterval = null;
 
 // DOM Elements
 const contentDiv = document.getElementById('tab-content');
@@ -36,10 +35,11 @@ async function login(schoolId, password) {
   
   btn.disabled = true;
   inputs.forEach(input => input.disabled = true);
-  btn.textContent = 'Logging in...';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
   
   try {
     const result = await loginUser(schoolId, password);
+    console.log("Login result:", result);
     
     if (result && result.success) {
       currentUser = {
@@ -56,14 +56,15 @@ async function login(schoolId, password) {
       loginModal.style.display = 'none';
       showToast(`✅ Welcome ${result.fullName}!`);
       
-      // Show dashboard after login
+      // Show dashboard
       document.getElementById('active-title').innerText = 'HYDROFIT Dashboard';
       contentDiv.innerHTML = `
         <div class="card">
           <h3><i class="fas fa-user-circle"></i> Welcome, ${result.fullName}!</h3>
-          <p>Program: ${result.program}</p>
-          <p>School ID: ${result.schoolId}</p>
-          <p>Section: ${result.yearLevel}-${result.section}</p>
+          <p><strong>Program:</strong> ${result.program}</p>
+          <p><strong>School ID:</strong> ${result.schoolId}</p>
+          <p><strong>Section:</strong> ${result.yearLevel}-${result.section}</p>
+          <button class="btn" id="logoutBtnDashboard" onclick="logout()" style="margin-top: 20px;">Logout</button>
         </div>
       `;
       return true;
@@ -78,7 +79,7 @@ async function login(schoolId, password) {
   } finally {
     btn.disabled = false;
     inputs.forEach(input => input.disabled = false);
-    btn.textContent = 'Login';
+    btn.innerHTML = 'Login';
   }
 }
 
@@ -119,10 +120,11 @@ async function register(registrationData) {
   
   btn.disabled = true;
   inputs.forEach(input => input.disabled = true);
-  btn.textContent = 'Registering...';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
   
   try {
     const result = await registerUser(registrationData);
+    console.log("Register result:", result);
     
     if (result && result.success) {
       showToast('✅ Registration successful! Please login.');
@@ -150,7 +152,7 @@ async function register(registrationData) {
   } finally {
     btn.disabled = false;
     inputs.forEach(input => input.disabled = false);
-    btn.textContent = 'Register';
+    btn.innerHTML = 'Register';
   }
 }
 
@@ -169,11 +171,11 @@ function checkAuth() {
     loginModal.style.display = 'none';
     contentDiv.innerHTML = `
       <div class="card">
-        <h3><i class="fas fa-user-circle"></i> Welcome, ${currentUser.fullName}!</h3>
-        <p>Program: ${currentUser.program}</p>
-        <p>School ID: ${currentUser.schoolId}</p>
-        <p>Section: ${currentUser.yearLevel}-${currentUser.section}</p>
-        <button class="btn" id="logoutBtnDashboard" onclick="logout()">Logout</button>
+        <h3><i class="fas fa-user-circle"></i> Welcome back, ${currentUser.fullName}!</h3>
+        <p><strong>Program:</strong> ${currentUser.program}</p>
+        <p><strong>School ID:</strong> ${currentUser.schoolId}</p>
+        <p><strong>Section:</strong> ${currentUser.yearLevel}-${currentUser.section}</p>
+        <button class="btn" onclick="logout()" style="margin-top: 20px;">Logout</button>
       </div>
     `;
   } else {
@@ -227,6 +229,9 @@ window.addEventListener('click', (e) => {
   if (e.target === registerModal) registerModal.style.display = 'none';
 });
 
+// Make logout global
+window.logout = logout;
+
 // ============ INITIALIZATION ============
 
 async function init() {
@@ -236,13 +241,12 @@ async function init() {
     if (testResult && testResult.success) {
       console.log('✅ API connected successfully');
     } else {
-      console.warn('⚠️ API connection issue');
+      console.warn('⚠️ API connection issue:', testResult?.message);
     }
+  } else {
+    console.error('❌ CONFIG.API_URL not defined!');
   }
   checkAuth();
 }
-
-// Make functions global
-window.logout = logout;
 
 init();

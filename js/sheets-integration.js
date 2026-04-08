@@ -1,4 +1,5 @@
-// sheets-integration.js - Simple Login/Registration for HYDROFIT
+// sheets-integration.js - JLF Style (works with POST)
+
 let apiUrl = null;
 
 function initSheetDB(apiUrlParam) {
@@ -7,64 +8,89 @@ function initSheetDB(apiUrlParam) {
   return { isReady: true };
 }
 
-// JSONP request (bypasses CORS)
-function jsonpRequest(url, callback) {
-  const callbackName = 'jsonp_cb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
-  
-  window[callbackName] = function(data) {
-    delete window[callbackName];
-    if (script.parentNode) document.body.removeChild(script);
-    callback(data);
-  };
-  
-  const separator = url.includes('?') ? '&' : '?';
-  const script = document.createElement('script');
-  script.src = `${url}${separator}callback=${callbackName}`;
-  script.onerror = function() {
-    delete window[callbackName];
-    document.body.removeChild(script);
-    callback({ success: false, error: 'Network error' });
-  };
-  
-  document.body.appendChild(script);
-  
-  setTimeout(() => {
-    if (window[callbackName]) {
-      delete window[callbackName];
-      if (script.parentNode) document.body.removeChild(script);
-      callback({ success: false, error: 'Request timeout' });
-    }
-  }, 15000);
-}
-
-// Register user
+// Register user using POST (like JLF)
 async function registerUser(userData) {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=register&fullName=${encodeURIComponent(userData.fullName)}&schoolId=${encodeURIComponent(userData.schoolId)}&program=${encodeURIComponent(userData.program)}&subject=${encodeURIComponent(userData.subject || 'Pathfit')}&yearLevel=${encodeURIComponent(userData.yearLevel)}&section=${encodeURIComponent(userData.section)}&password=${encodeURIComponent(userData.password)}`;
+  try {
+    const formData = new URLSearchParams();
+    formData.append("action", "register");
+    formData.append("fullName", userData.fullName);
+    formData.append("schoolId", userData.schoolId);
+    formData.append("program", userData.program);
+    formData.append("subject", userData.subject || "Pathfit");
+    formData.append("yearLevel", userData.yearLevel);
+    formData.append("section", userData.section);
+    formData.append("password", userData.password);
+    formData.append("timestamp", new Date().toISOString());
     
-    jsonpRequest(url, (result) => {
-      resolve(result);
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData
     });
-  });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Register error:", error);
+    return { success: false, message: "Connection error" };
+  }
 }
 
-// Login user
+// Login user using POST (like JLF)
 async function loginUser(schoolId, password) {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=login&schoolId=${encodeURIComponent(schoolId)}&password=${encodeURIComponent(password)}`;
+  try {
+    const formData = new URLSearchParams();
+    formData.append("action", "login");
+    formData.append("schoolId", schoolId);
+    formData.append("password", password);
     
-    jsonpRequest(url, (result) => {
-      resolve(result);
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData
     });
-  });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Login error:", error);
+    return { success: false, message: "Connection error" };
+  }
+}
+
+// Get all users (for testing)
+async function getUsers() {
+  try {
+    const formData = new URLSearchParams();
+    formData.append("action", "getUsers");
+    
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Get users error:", error);
+    return [];
+  }
 }
 
 // Test connection
 async function testAPIConnection() {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=test`;
-    jsonpRequest(url, (result) => {
-      resolve(result);
+  try {
+    const formData = new URLSearchParams();
+    formData.append("action", "getUsers");
+    
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      body: formData
     });
-  });
+    
+    if (response.ok) {
+      return { success: true, message: "API connected" };
+    }
+    return { success: false, message: "API not reachable" };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
 }
