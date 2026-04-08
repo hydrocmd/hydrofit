@@ -1,9 +1,9 @@
-// sheets-integration.js - Google Apps Script Integration for HYDROFIT
+// sheets-integration.js - Simple Login/Registration for HYDROFIT
 let apiUrl = null;
 
 function initSheetDB(apiUrlParam) {
   apiUrl = apiUrlParam;
-  console.log('✅ HYDROFIT API Ready:', apiUrl);
+  console.log('✅ API Ready:', apiUrl);
   return { isReady: true };
 }
 
@@ -37,8 +37,7 @@ function jsonpRequest(url, callback) {
   }, 15000);
 }
 
-// ============ API FUNCTIONS ============
-
+// Register user
 async function registerUser(userData) {
   return new Promise((resolve) => {
     const url = `${apiUrl}?action=register&fullName=${encodeURIComponent(userData.fullName)}&schoolId=${encodeURIComponent(userData.schoolId)}&program=${encodeURIComponent(userData.program)}&subject=${encodeURIComponent(userData.subject || 'Pathfit')}&yearLevel=${encodeURIComponent(userData.yearLevel)}&section=${encodeURIComponent(userData.section)}&password=${encodeURIComponent(userData.password)}`;
@@ -49,6 +48,7 @@ async function registerUser(userData) {
   });
 }
 
+// Login user
 async function loginUser(schoolId, password) {
   return new Promise((resolve) => {
     const url = `${apiUrl}?action=login&schoolId=${encodeURIComponent(schoolId)}&password=${encodeURIComponent(password)}`;
@@ -59,58 +59,7 @@ async function loginUser(schoolId, password) {
   });
 }
 
-async function getRankings(program, sectionCode) {
-  return new Promise((resolve) => {
-    let url = `${apiUrl}?action=getRankings`;
-    if (program) url += `&program=${encodeURIComponent(program)}`;
-    if (sectionCode) url += `&sectionCode=${encodeURIComponent(sectionCode)}`;
-    
-    jsonpRequest(url, (result) => {
-      resolve(result);
-    });
-  });
-}
-
-async function markAttendance(schoolId, fullName, date) {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=markAttendance&schoolId=${encodeURIComponent(schoolId)}&fullName=${encodeURIComponent(fullName)}&date=${encodeURIComponent(date || new Date().toISOString().split('T')[0])}`;
-    
-    jsonpRequest(url, (result) => {
-      resolve(result);
-    });
-  });
-}
-
-async function getUserAttendance(schoolId) {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=getAttendance&schoolId=${encodeURIComponent(schoolId)}`;
-    
-    jsonpRequest(url, (result) => {
-      resolve(result);
-    });
-  });
-}
-
-async function addAssessment(schoolId, fullName, assessmentType, score) {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=addAssessment&schoolId=${encodeURIComponent(schoolId)}&fullName=${encodeURIComponent(fullName)}&assessmentType=${encodeURIComponent(assessmentType)}&score=${encodeURIComponent(score)}`;
-    
-    jsonpRequest(url, (result) => {
-      resolve(result);
-    });
-  });
-}
-
-async function getUserAssessments(schoolId) {
-  return new Promise((resolve) => {
-    const url = `${apiUrl}?action=getAssessments&schoolId=${encodeURIComponent(schoolId)}`;
-    
-    jsonpRequest(url, (result) => {
-      resolve(result);
-    });
-  });
-}
-
+// Test connection
 async function testAPIConnection() {
   return new Promise((resolve) => {
     const url = `${apiUrl}?action=test`;
