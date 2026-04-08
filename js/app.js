@@ -1,4 +1,4 @@
-// app.js - HYDROFIT Complete Application
+// app.js - HYDROFIT Complete Application with Google Apps Script Integration
 
 // Global variables
 let currentUser = null;
@@ -50,13 +50,7 @@ function playLoudBell() {
   }
 }
 
-function saveUserData() {
-  if (currentUser) {
-    localStorage.setItem(`hydrofit_${currentUser.schoolId}`, JSON.stringify(userData));
-  }
-}
-
-// ============ LOGIN / REGISTRATION (Fixed - Works without external API) ============
+// ============ LOGIN / REGISTRATION WITH GOOGLE APPS SCRIPT ============
 
 async function login(schoolId, password) {
   if (!schoolId || !password) {
@@ -71,51 +65,51 @@ async function login(schoolId, password) {
   inputs.forEach(input => input.disabled = true);
   btn.textContent = 'Logging in...';
   
-  // Use localStorage (works offline, no connection issues)
-  setTimeout(() => {
-    try {
-      const users = JSON.parse(localStorage.getItem('hydrofit_accounts') || '[]');
-      const user = users.find(u => u.schoolId === schoolId && u.password === password);
+  try {
+    const result = await loginUser(schoolId, password);
+    
+    if (result && result.success) {
+      currentUser = {
+        schoolId: result.schoolId,
+        fullName: result.fullName,
+        program: result.program,
+        subject: result.subject || 'Pathfit',
+        yearLevel: result.yearLevel,
+        section: result.section,
+        sectionCode: result.sectionCode
+      };
       
-      if (user) {
-        currentUser = {
-          schoolId: user.schoolId,
-          fullName: user.fullName,
-          program: user.program,
-          subject: user.subject || 'Pathfit',
-          yearLevel: user.yearLevel,
-          section: user.section
-        };
-        
-        localStorage.setItem('hydrofit_current_user', JSON.stringify(currentUser));
-        
-        const stored = localStorage.getItem(`hydrofit_${currentUser.schoolId}`);
-        if (stored) {
-          userData = JSON.parse(stored);
-        } else {
-          userData = { assessments: [], attendance: [], goals: [] };
-        }
-        
-        loginModal.style.display = 'none';
-        showToast(`✅ Welcome ${user.fullName}!`);
-        switchTab('dashboard');
-        return true;
-      } else {
-        showToast('Invalid School ID or Password', true);
-        return false;
+      // Store session
+      sessionStorage.setItem('hydrofit_current_user', JSON.stringify(currentUser));
+      
+      // Load user data from sheets
+      const attendanceResult = await getUserAttendance(schoolId);
+      if (attendanceResult && attendanceResult.success) {
+        userData.attendance = attendanceResult.attendance || [];
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      showToast('Login error. Please try again.', true);
+      
+      const assessmentsResult = await getUserAssessments(schoolId);
+      if (assessmentsResult && assessmentsResult.success) {
+        userData.assessments = assessmentsResult.assessments || [];
+      }
+      
+      loginModal.style.display = 'none';
+      showToast(`✅ Welcome ${result.fullName}!`);
+      switchTab('dashboard');
+      return true;
+    } else {
+      showToast(result?.message || 'Invalid School ID or Password', true);
       return false;
-    } finally {
-      btn.disabled = false;
-      inputs.forEach(input => input.disabled = false);
-      btn.textContent = 'Login';
     }
-  }, 500);
-  
-  return true;
+  } catch (error) {
+    console.error('Login error:', error);
+    showToast('Connection error. Please check your internet and try again.', true);
+    return false;
+  } finally {
+    btn.disabled = false;
+    inputs.forEach(input => input.disabled = false);
+    btn.textContent = 'Login';
+  }
 }
 
 async function register(registrationData) {
@@ -156,38 +150,10 @@ async function register(registrationData) {
   inputs.forEach(input => input.disabled = true);
   btn.textContent = 'Registering...';
   
-  // Save to localStorage (works offline)
-  setTimeout(() => {
-    try {
-      const users = JSON.parse(localStorage.getItem('hydrofit_accounts') || '[]');
-      
-      // Check if School ID already exists
-      if (users.some(u => u.schoolId === registrationData.schoolId)) {
-        showToast('School ID already exists', true);
-        btn.disabled = false;
-        inputs.forEach(input => input.disabled = false);
-        btn.textContent = 'Register';
-        return false;
-      }
-      
-      // Create section code (e.g., 1-F1)
-      const sectionCode = `${registrationData.yearLevel}-${registrationData.section}`;
-      
-      const newUser = {
-        schoolId: registrationData.schoolId,
-        password: registrationData.password,
-        fullName: registrationData.fullName,
-        program: registrationData.program,
-        subject: registrationData.subject || 'Pathfit',
-        yearLevel: registrationData.yearLevel,
-        section: registrationData.section,
-        sectionCode: sectionCode,
-        registeredAt: new Date().toISOString()
-      };
-      
-      users.push(newUser);
-      localStorage.setItem('hydrofit_accounts', JSON.stringify(users));
-      
+  try {
+    const result = await registerUser(registrationData);
+    
+    if (result && result.success) {
       showToast('✅ Registration successful! Please login.');
       registerModal.style.display = 'none';
       loginModal.style.display = 'flex';
@@ -201,26 +167,26 @@ async function register(registrationData) {
       document.getElementById('regSection').value = '';
       document.getElementById('regPassword').value = '';
       document.getElementById('regConfirmPassword').value = '';
-      
       return true;
-    } catch (error) {
-      console.error('Registration error:', error);
-      showToast('Registration error. Please try again.', true);
+    } else {
+      showToast(result?.message || 'Registration failed', true);
       return false;
-    } finally {
-      btn.disabled = false;
-      inputs.forEach(input => input.disabled = false);
-      btn.textContent = 'Register';
     }
-  }, 500);
-  
-  return true;
+  } catch (error) {
+    console.error('Registration error:', error);
+    showToast('Connection error. Please check your internet and try again.', true);
+    return false;
+  } finally {
+    btn.disabled = false;
+    inputs.forEach(input => input.disabled = false);
+    btn.textContent = 'Register';
+  }
 }
 
 function logout() {
   if (slideInterval) clearInterval(slideInterval);
   currentUser = null;
-  localStorage.removeItem('hydrofit_current_user');
+  sessionStorage.removeItem('hydrofit_current_user');
   loginModal.style.display = 'flex';
   registerModal.style.display = 'none';
   profileModal.style.display = 'none';
@@ -228,15 +194,25 @@ function logout() {
 }
 
 function checkAuth() {
-  const savedUser = localStorage.getItem('hydrofit_current_user');
+  const savedUser = sessionStorage.getItem('hydrofit_current_user');
   if (savedUser) {
     currentUser = JSON.parse(savedUser);
-    const stored = localStorage.getItem(`hydrofit_${currentUser.schoolId}`);
-    if (stored) {
-      userData = JSON.parse(stored);
-    }
     loginModal.style.display = 'none';
-    switchTab('dashboard');
+    // Load data asynchronously
+    Promise.all([
+      getUserAttendance(currentUser.schoolId),
+      getUserAssessments(currentUser.schoolId)
+    ]).then(([attendanceResult, assessmentsResult]) => {
+      if (attendanceResult && attendanceResult.success) {
+        userData.attendance = attendanceResult.attendance || [];
+      }
+      if (assessmentsResult && assessmentsResult.success) {
+        userData.assessments = assessmentsResult.assessments || [];
+      }
+      switchTab('dashboard');
+    }).catch(() => {
+      switchTab('dashboard');
+    });
   } else {
     loginModal.style.display = 'flex';
   }
@@ -415,93 +391,92 @@ function renderProfile() {
       <h3><i class="fas fa-chart-line"></i> Recent Activity</h3>
       <p>Total Assessments: ${userData.assessments?.length || 0}</p>
       <p>Total Attendances: ${userData.attendance?.length || 0}</p>
+      <button class="btn btn-sm" id="refreshProfileBtn" onclick="refreshProfileData()"><i class="fas fa-sync-alt"></i> Refresh Data</button>
     </div>
   `;
 }
 
-function renderRanking() {
-  // Get all users from localStorage
-  const users = JSON.parse(localStorage.getItem('hydrofit_accounts') || '[]');
-  
-  // Calculate mock grades (you can replace with actual assessment data)
-  const usersWithGrades = users.map(user => {
-    const userAssessment = JSON.parse(localStorage.getItem(`hydrofit_${user.schoolId}`) || '{}');
-    const assessmentCount = userAssessment.assessments?.length || 0;
-    // Mock grade based on attendance and assessments (0-100)
-    let grade = 75 + (assessmentCount * 2) + (Math.random() * 10);
-    grade = Math.min(98, Math.max(70, grade));
-    return {
-      ...user,
-      grade: Math.round(grade * 10) / 10
-    };
-  });
-  
-  // Sort by grade descending
-  usersWithGrades.sort((a, b) => b.grade - a.grade);
-  
-  // Campus Ranking (Top 15)
-  const campusRanking = usersWithGrades.slice(0, 15);
-  
-  // Program Ranking (filter by current user's program, Top 10)
-  const programRanking = usersWithGrades
-    .filter(u => u.program === currentUser?.program)
-    .slice(0, 10);
-  
-  // Class Ranking (filter by section, Top 10)
-  const currentSection = currentUser?.yearLevel && currentUser?.section ? `${currentUser.yearLevel}-${currentUser.section}` : null;
-  const classRanking = usersWithGrades
-    .filter(u => {
-      const uSection = u.yearLevel && u.section ? `${u.yearLevel}-${u.section}` : null;
-      return uSection === currentSection;
-    })
-    .slice(0, 10);
-  
-  function renderRankTable(data, title) {
-    if (data.length === 0) {
-      return `<div class="ranking-section"><h3>${title}</h3><p>No data available.</p></div>`;
-    }
-    
-    let html = `<div class="ranking-section"><h3>${title}</h3><table class="ranking-table"><thead><tr><th>Rank</th><th>Name</th><th>Program</th><th>Grade</th></tr></thead><tbody>`;
-    
-    let currentRank = 1;
-    let prevGrade = null;
-    let sameRankCount = 0;
-    
-    for (let i = 0; i < data.length; i++) {
-      if (prevGrade !== null && data[i].grade < prevGrade) {
-        currentRank += sameRankCount + 1;
-        sameRankCount = 0;
-      }
-      
-      const isTie = prevGrade !== null && data[i].grade === prevGrade;
-      if (isTie) {
-        sameRankCount++;
-      } else {
-        sameRankCount = 0;
-      }
-      
-      const rankDisplay = isTie ? '' : currentRank;
-      const rankText = isTie ? '↳' : currentRank;
-      
-      html += `<tr ${isTie ? 'class="tied-rank"' : ''}>
-        <td>${rankText}</td>
-        <td>${data[i].fullName}</td>
-        <td>${data[i].program}</td>
-        <td><strong>${data[i].grade}</strong></td>
-      </tr>`;
-      
-      prevGrade = data[i].grade;
-    }
-    
-    html += `</tbody></table></div>`;
-    return html;
+async function refreshProfileData() {
+  showToast('Refreshing data...');
+  const attendanceResult = await getUserAttendance(currentUser.schoolId);
+  if (attendanceResult && attendanceResult.success) {
+    userData.attendance = attendanceResult.attendance || [];
   }
+  const assessmentsResult = await getUserAssessments(currentUser.schoolId);
+  if (assessmentsResult && assessmentsResult.success) {
+    userData.assessments = assessmentsResult.assessments || [];
+  }
+  renderProfile();
+  showToast('Data refreshed!');
+}
+
+async function renderRanking() {
+  if (!contentDiv) return;
   
-  contentDiv.innerHTML = `
-    ${renderRankTable(campusRanking, "🏆 Campus Ranking (Top 15)")}
-    ${renderRankTable(programRanking, `📚 ${currentUser?.program} Program Ranking (Top 10)`)}
-    ${renderRankTable(classRanking, `👥 Class ${currentSection} Ranking (Top 10)`)}
-  `;
+  contentDiv.innerHTML = `<div class="loading-placeholder">Loading rankings...</div>`;
+  
+  const sectionCode = currentUser?.yearLevel && currentUser?.section ? `${currentUser.yearLevel}-${currentUser.section}` : null;
+  
+  try {
+    const result = await getRankings(currentUser?.program, sectionCode);
+    
+    if (!result || !result.success) {
+      contentDiv.innerHTML = `<div class="card"><p>Error loading rankings. Please try again.</p><button class="btn" onclick="renderRanking()">Retry</button></div>`;
+      return;
+    }
+    
+    function renderRankTable(data, title) {
+      if (!data || data.length === 0) {
+        return `<div class="ranking-section"><h3>${title}</h3><p>No data available.</p></div>`;
+      }
+      
+      let html = `<div class="ranking-section"><h3>${title}</h3><table class="ranking-table"><thead><tr><th>Rank</th><th>Name</th><th>Program/Section</th><th>Grade</th></tr></thead><tbody>`;
+      
+      let currentRank = 1;
+      let prevGrade = null;
+      let sameRankCount = 0;
+      
+      for (let i = 0; i < data.length; i++) {
+        if (prevGrade !== null && data[i].grade < prevGrade) {
+          currentRank += sameRankCount + 1;
+          sameRankCount = 0;
+        }
+        
+        const isTie = prevGrade !== null && data[i].grade === prevGrade;
+        if (isTie) {
+          sameRankCount++;
+        } else {
+          sameRankCount = 0;
+        }
+        
+        const rankText = isTie ? '↳' : currentRank;
+        
+        html += `<tr ${isTie ? 'class="tied-rank"' : ''}>
+          <td><strong>${rankText}</strong></td>
+          <td>${data[i].fullName || data[i].name || 'N/A'}</td>
+          <td>${data[i].program || data[i].sectionCode || 'N/A'}</td>
+          <td><strong>${data[i].grade || data[i].score || 'N/A'}</strong></td>
+        </tr>`;
+        
+        prevGrade = data[i].grade;
+      }
+      
+      html += `</tbody></table></div>`;
+      return html;
+    }
+    
+    contentDiv.innerHTML = `
+      ${renderRankTable(result.campus, "🏆 Campus Ranking (Top 15)")}
+      ${renderRankTable(result.program, `📚 ${currentUser?.program} Program Ranking (Top 10)`)}
+      ${renderRankTable(result.class, `👥 Class ${sectionCode} Ranking (Top 10)`)}
+      <div style="text-align: center; margin-top: 20px;">
+        <button class="btn btn-sm" onclick="renderRanking()"><i class="fas fa-sync-alt"></i> Refresh Rankings</button>
+      </div>
+    `;
+  } catch (error) {
+    console.error('Ranking error:', error);
+    contentDiv.innerHTML = `<div class="card"><p>Error loading rankings. Please check your connection.</p><button class="btn" onclick="renderRanking()">Retry</button></div>`;
+  }
 }
 
 function renderActivity() {
@@ -511,7 +486,31 @@ function renderActivity() {
       <p>Track your fitness activities here.</p>
       <button class="btn" onclick="showToast('Activity logged!')">Log New Activity</button>
     </div>
+    <div class="card">
+      <h3><i class="fas fa-history"></i> Recent Assessments</h3>
+      <div id="assessmentList">
+        ${userData.assessments?.length > 0 ? 
+          userData.assessments.slice(-5).map(a => `<div>📊 ${a.type || 'Assessment'}: Score ${a.score || 'N/A'} on ${a.date || 'N/A'}</div>`).join('') : 
+          '<p>No assessments yet.</p>'}
+      </div>
+      <button class="btn btn-sm" id="addAssessmentBtn">Add Assessment</button>
+    </div>
   `;
+  
+  document.getElementById('addAssessmentBtn')?.addEventListener('click', async () => {
+    const type = prompt('Enter assessment type (e.g., Push-ups, Sit-ups):');
+    const score = prompt('Enter your score:');
+    if (type && score) {
+      const result = await addAssessment(currentUser.schoolId, currentUser.fullName, type, parseInt(score));
+      if (result && result.success) {
+        showToast('Assessment recorded!');
+        refreshProfileData();
+        renderActivity();
+      } else {
+        showToast('Failed to record assessment', true);
+      }
+    }
+  });
 }
 
 function renderMovementLib() { contentDiv.innerHTML = `<div class="card"><h3>Movement Library</h3><p>Exercise videos and instructions coming soon!</p></div>`; }
@@ -586,22 +585,34 @@ function renderTimerSystem() {
 
 function renderWarmupGen() { contentDiv.innerHTML = `<div class="card"><h3>Warm-up Generator</h3><button class="btn" onclick="showToast('Arm circles, leg swings, light jog')">Generate Warmup</button></div>`; }
 function renderInjuryGuide() { contentDiv.innerHTML = `<div class="card"><h3>Injury Prevention Guide</h3><p>✅ Proper form tips and safety guidelines.</p></div>`; }
-function renderAttendance() { contentDiv.innerHTML = `<div class="card"><h3>Class Attendance</h3><p>Total attendances: ${userData.attendance?.length || 0}</p><button class="btn" id="markClassAttend">Mark Present</button></div>`;
-  document.getElementById('markClassAttend')?.addEventListener('click', () => { 
-    const today = new Date().toDateString(); 
-    if(!userData.attendance?.includes(today)){ 
-      userData.attendance = userData.attendance || []; 
-      userData.attendance.push(today); 
-      saveUserData(); 
-      showToast('Attendance marked!'); 
-      renderAttendance(); 
-    } else { 
-      showToast('Already marked!'); 
-    } 
+
+function renderAttendance() { 
+  contentDiv.innerHTML = `<div class="card"><h3>Class Attendance</h3><p>Total attendances: ${userData.attendance?.length || 0}</p><button class="btn" id="markClassAttend">Mark Present</button><div id="attendanceList" class="mt-4"></div></div>`;
+  
+  // Show attendance history
+  const attendanceList = document.getElementById('attendanceList');
+  if (attendanceList && userData.attendance && userData.attendance.length > 0) {
+    attendanceList.innerHTML = `<h4>Recent Attendance:</h4><ul>${userData.attendance.slice(-10).map(a => `<li>✅ ${a.date || a}</li>`).join('')}</ul>`;
+  }
+  
+  document.getElementById('markClassAttend')?.addEventListener('click', async () => { 
+    const today = new Date().toISOString().split('T')[0];
+    const result = await markAttendance(currentUser.schoolId, currentUser.fullName, today);
+    if (result && result.success) {
+      showToast('Attendance marked!');
+      refreshProfileData();
+      renderAttendance();
+    } else {
+      showToast(result?.message || 'Already marked today!', true);
+    }
   });
 }
+
 function renderGoalPlanner() { contentDiv.innerHTML = `<div class="card"><h3>Goal Planner</h3><input id="goalInput" placeholder="Enter your fitness goal"><button id="setGoal" class="btn">Set Goal</button><div id="goalsList"></div></div>`;
-  document.getElementById('setGoal')?.addEventListener('click', () => { let g = document.getElementById('goalInput').value; if(g){ userData.goals.push(g); saveUserData(); renderGoalPlanner(); } });
+  // Load goals from localStorage (temporary - can be moved to sheets)
+  const savedGoals = JSON.parse(localStorage.getItem(`hydrofit_goals_${currentUser?.schoolId}`) || '[]');
+  userData.goals = savedGoals;
+  document.getElementById('setGoal')?.addEventListener('click', () => { let g = document.getElementById('goalInput').value; if(g){ userData.goals.push(g); localStorage.setItem(`hydrofit_goals_${currentUser?.schoolId}`, JSON.stringify(userData.goals)); renderGoalPlanner(); } });
   document.getElementById('goalsList').innerHTML = (userData.goals || []).map(g => `<div>🎯 ${g}</div>`).join('');
 }
 function renderBodyFocus() { contentDiv.innerHTML = `<div class="card"><h3>Body Focus Trainer</h3><select><option>Legs</option><option>Core</option><option>Arms</option></select><button class="btn">Start Workout</button></div>`; }
@@ -665,6 +676,10 @@ function initMobileMenu() {
   }
 }
 
+// Make refresh function global for onclick
+window.refreshProfileData = refreshProfileData;
+window.renderRanking = renderRanking;
+
 // ============ EVENT LISTENERS ============
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -721,7 +736,25 @@ document.getElementById('loginPassword')?.addEventListener('keypress', (e) => {
 
 async function init() {
   initMobileMenu();
+  
+  // Test API connection
+  if (typeof CONFIG !== 'undefined' && CONFIG.API_URL) {
+    initSheetDB(CONFIG.API_URL);
+    const testResult = await testAPIConnection();
+    if (testResult && testResult.success) {
+      console.log('✅ API connected successfully');
+    } else {
+      console.warn('⚠️ API connection issue, using fallback mode');
+    }
+  }
+  
   checkAuth();
 }
 
+// Make functions global for HTML onclick
+window.showToast = showToast;
+window.addAssessment = addAssessment;
+window.markAttendance = markAttendance;
+
+// Start the app
 init();
