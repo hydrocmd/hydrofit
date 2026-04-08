@@ -1010,3 +1010,43 @@ input:disabled {
     font-size: 0.55rem;
   }
 }
+
+/* Toast animation */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Fix for modal z-index */
+.modal {
+    z-index: 1000;
+}
+
+#registerModal {
+    z-index: 1001;
+}
+
+/* Make sure buttons are clickable */
+.modal-link span {
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: 600;
+}
+
+.modal-link span:hover {
+    color: var(--primary-dark);
+}
+
+/* Disabled button styles */
+.btn:disabled,
+.modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}

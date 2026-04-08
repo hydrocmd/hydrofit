@@ -12,6 +12,8 @@ let workoutChart = null;
 // ========================================
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log("HYDROFIT Initializing...");
+    
     // Check if user is logged in
     if (isLoggedIn()) {
         currentUser = getCurrentUser();
@@ -26,49 +28,142 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function setupEventListeners() {
     // Login button
-    document.getElementById('loginBtn').addEventListener('click', handleLogin);
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', handleLogin);
+    }
     
     // Register button
-    document.getElementById('registerBtn').addEventListener('click', handleRegister);
+    const registerBtn = document.getElementById('registerBtn');
+    if (registerBtn) {
+        registerBtn.addEventListener('click', handleRegister);
+    }
     
-    // Switch between login/register
-    document.getElementById('showRegister').addEventListener('click', () => {
-        document.getElementById('loginModal').style.display = 'none';
-        document.getElementById('registerModal').style.display = 'flex';
-    });
+    // Switch to Register - IMPORTANT FIX
+    const showRegisterLink = document.getElementById('showRegister');
+    if (showRegisterLink) {
+        showRegisterLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log("Switching to register modal");
+            document.getElementById('loginModal').style.display = 'none';
+            document.getElementById('registerModal').style.display = 'flex';
+        });
+    }
     
-    document.getElementById('showLogin').addEventListener('click', () => {
-        document.getElementById('registerModal').style.display = 'none';
-        document.getElementById('loginModal').style.display = 'flex';
-    });
+    // Switch to Login
+    const showLoginLink = document.getElementById('showLogin');
+    if (showLoginLink) {
+        showLoginLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log("Switching to login modal");
+            document.getElementById('registerModal').style.display = 'none';
+            document.getElementById('loginModal').style.display = 'flex';
+        });
+    }
     
     // Logout button
-    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
     
     // Mobile menu toggle
-    document.getElementById('mobileMenuBtn').addEventListener('click', () => {
-        document.querySelector('.sidebar').classList.toggle('open');
-    });
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', function() {
+            document.querySelector('.sidebar').classList.toggle('open');
+        });
+    }
     
     // Navigation buttons
     document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tab = btn.getAttribute('data-tab');
+        btn.addEventListener('click', function() {
+            const tab = this.getAttribute('data-tab');
             switchTab(tab);
+            // Close mobile menu on mobile
+            if (window.innerWidth <= 768) {
+                document.querySelector('.sidebar').classList.remove('open');
+            }
         });
     });
     
     // Close profile modal
-    document.getElementById('closeProfileModal').addEventListener('click', () => {
-        document.getElementById('profileModal').style.display = 'none';
-    });
+    const closeProfileBtn = document.getElementById('closeProfileModal');
+    if (closeProfileBtn) {
+        closeProfileBtn.addEventListener('click', function() {
+            document.getElementById('profileModal').style.display = 'none';
+        });
+    }
     
     // Click outside modal to close
-    window.addEventListener('click', (e) => {
+    window.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal')) {
             e.target.style.display = 'none';
         }
     });
+    
+    // Enter key press for login
+    const loginPassword = document.getElementById('loginPassword');
+    if (loginPassword) {
+        loginPassword.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleLogin();
+            }
+        });
+    }
+    
+    // Enter key press for register
+    const regConfirmPassword = document.getElementById('regConfirmPassword');
+    if (regConfirmPassword) {
+        regConfirmPassword.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleRegister();
+            }
+        });
+    }
+}
+
+// ========================================
+// MODAL FUNCTIONS
+// ========================================
+
+function showLoginModal() {
+    console.log("Showing login modal");
+    document.getElementById('loginModal').style.display = 'flex';
+    document.getElementById('registerModal').style.display = 'none';
+    
+    // Clear inputs
+    document.getElementById('loginSchoolId').value = '';
+    document.getElementById('loginPassword').value = '';
+}
+
+function showRegisterModal() {
+    console.log("Showing register modal");
+    document.getElementById('loginModal').style.display = 'none';
+    document.getElementById('registerModal').style.display = 'flex';
+    
+    // Clear register form
+    document.getElementById('regFullName').value = '';
+    document.getElementById('regSchoolId').value = '';
+    document.getElementById('regSubject').value = '';
+    document.getElementById('regProgram').value = '';
+    document.getElementById('regYearLevel').value = '';
+    document.getElementById('regSection').value = '';
+    document.getElementById('regPassword').value = '';
+    document.getElementById('regConfirmPassword').value = '';
+}
+
+function showApp() {
+    console.log("Showing main app");
+    document.querySelector('.app-container').style.display = 'flex';
+    document.getElementById('loginModal').style.display = 'none';
+    document.getElementById('registerModal').style.display = 'none';
+    
+    // Load dashboard by default
+    switchTab('dashboard');
+    
+    // Update user display
+    updateUserDisplay();
 }
 
 // ========================================
@@ -76,6 +171,8 @@ function setupEventListeners() {
 // ========================================
 
 async function handleLogin() {
+    console.log("Login attempt...");
+    
     const schoolId = document.getElementById('loginSchoolId').value.trim();
     const password = document.getElementById('loginPassword').value;
     
@@ -85,6 +182,7 @@ async function handleLogin() {
     }
     
     const loginBtn = document.getElementById('loginBtn');
+    const originalText = loginBtn.innerHTML;
     loginBtn.disabled = true;
     loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
     
@@ -93,17 +191,17 @@ async function handleLogin() {
     if (result.success) {
         currentUser = result.user;
         showToast(`Welcome back, ${currentUser.fullName}!`, 'success');
-        document.getElementById('loginModal').style.display = 'none';
         showApp();
     } else {
         showToast(result.message, 'error');
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = originalText;
     }
-    
-    loginBtn.disabled = false;
-    loginBtn.innerHTML = 'Login';
 }
 
 async function handleRegister() {
+    console.log("Register attempt...");
+    
     const userData = {
         fullName: document.getElementById('regFullName').value.trim(),
         schoolId: document.getElementById('regSchoolId').value.trim(),
@@ -131,7 +229,18 @@ async function handleRegister() {
         return;
     }
     
+    if (!userData.program) {
+        showToast('Please select your program', 'error');
+        return;
+    }
+    
+    if (!userData.yearLevel) {
+        showToast('Please select your year level', 'error');
+        return;
+    }
+    
     const registerBtn = document.getElementById('registerBtn');
+    const originalText = registerBtn.innerHTML;
     registerBtn.disabled = true;
     registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
     
@@ -139,24 +248,30 @@ async function handleRegister() {
     
     if (result.success) {
         showToast('Account created successfully! Please login.', 'success');
-        document.getElementById('registerModal').style.display = 'none';
-        document.getElementById('loginModal').style.display = 'flex';
-        document.getElementById('registerForm').reset();
+        // Clear form
+        document.getElementById('regFullName').value = '';
+        document.getElementById('regSchoolId').value = '';
+        document.getElementById('regSubject').value = '';
+        document.getElementById('regProgram').value = '';
+        document.getElementById('regYearLevel').value = '';
+        document.getElementById('regSection').value = '';
+        document.getElementById('regPassword').value = '';
+        document.getElementById('regConfirmPassword').value = '';
+        // Show login modal
+        showLoginModal();
     } else {
         showToast(result.message, 'error');
+        registerBtn.disabled = false;
+        registerBtn.innerHTML = originalText;
     }
-    
-    registerBtn.disabled = false;
-    registerBtn.innerHTML = 'Register';
 }
 
 function handleLogout() {
+    console.log("Logging out...");
     logoutUser();
     currentUser = null;
     document.querySelector('.sidebar').classList.remove('open');
-    document.getElementById('loginModal').style.display = 'flex';
-    document.getElementById('loginSchoolId').value = '';
-    document.getElementById('loginPassword').value = '';
+    showLoginModal();
     showToast('Logged out successfully', 'success');
 }
 
@@ -164,19 +279,8 @@ function handleLogout() {
 // UI FUNCTIONS
 // ========================================
 
-function showApp() {
-    document.querySelector('.app-container').style.display = 'flex';
-    document.getElementById('loginModal').style.display = 'none';
-    document.getElementById('registerModal').style.display = 'none';
-    
-    // Load dashboard by default
-    switchTab('dashboard');
-    
-    // Update user display
-    updateUserDisplay();
-}
-
 function switchTab(tabName) {
+    console.log("Switching to tab:", tabName);
     currentTab = tabName;
     
     // Update active nav button
@@ -625,7 +729,10 @@ async function loadAttendanceTracker() {
     
     container.innerHTML = attendanceHtml;
     
-    document.getElementById('recordAttendanceBtn').addEventListener('click', recordTodayAttendance);
+    const recordBtn = document.getElementById('recordAttendanceBtn');
+    if (recordBtn) {
+        recordBtn.addEventListener('click', recordTodayAttendance);
+    }
 }
 
 async function recordTodayAttendance() {
@@ -691,12 +798,6 @@ async function loadGenericTab(tabName) {
 // ========================================
 
 function updateUserDisplay() {
-    // Update sidebar if needed
-    const userNameDisplay = document.getElementById('userNameDisplay');
-    if (userNameDisplay) {
-        userNameDisplay.innerText = currentUser.fullName.split(' ')[0];
-    }
-    
     // Update localStorage
     localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
 }
@@ -713,11 +814,16 @@ function showQRCode() {
         program: currentUser.program
     });
     
-    new QRCode(qrContainer, {
-        text: qrData,
-        width: 200,
-        height: 200
-    });
+    // Use QRCode library
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(qrContainer, {
+            text: qrData,
+            width: 200,
+            height: 200
+        });
+    } else {
+        qrContainer.innerHTML = '<p>QR Code library loading...</p>';
+    }
     
     userInfo.innerHTML = `<strong>${escapeHtml(currentUser.fullName)}</strong><br>School ID: ${currentUser.schoolId}<br>${currentUser.program} - Year ${currentUser.yearLevel}`;
     
@@ -725,6 +831,12 @@ function showQRCode() {
 }
 
 function showToast(message, type = 'info') {
+    // Remove existing toast
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+    
     // Create toast element
     const toast = document.createElement('div');
     toast.className = 'toast-notification';
@@ -746,6 +858,7 @@ function showToast(message, type = 'info') {
         z-index: 9999;
         animation: slideInRight 0.3s ease;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-size: 0.9rem;
     `;
     
     document.body.appendChild(toast);
@@ -807,7 +920,7 @@ async function loadProgressChart() {
     });
 }
 
-// Make functions global
+// Make functions global for HTML onclick handlers
 window.switchTab = switchTab;
 window.showQRCode = showQRCode;
 window.recordTodayAttendance = recordTodayAttendance;
