@@ -18,6 +18,7 @@
         <span>HYDRO<span class="light">FIT</span></span>
       </div>
       <nav class="nav-menu">
+        <button class="nav-btn teacher-only" data-tab="teacher-dashboard" style="display: none;"><i class="fas fa-chalkboard-teacher"></i> Teacher</button>
         <button class="nav-btn active" data-tab="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</button>
         <button class="nav-btn" data-tab="profile"><i class="fas fa-user-circle"></i> My Profile</button>
         <button class="nav-btn" data-tab="ranking"><i class="fas fa-trophy"></i> Ranking</button>
@@ -35,7 +36,6 @@
         <button class="nav-btn" data-tab="bmi"><i class="fas fa-weight-scale"></i> BMI Tracker</button>
         <button class="nav-btn" data-tab="recovery"><i class="fas fa-bed"></i> Recovery Rest</button>
         <button class="nav-btn" data-tab="bodytype"><i class="fas fa-user-tag"></i> Body Type</button>
-        <button class="nav-btn teacher-only" data-tab="teacher-dashboard" style="display: none;"><i class="fas fa-chalkboard-teacher"></i> Teacher</button>
       </nav>
       <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
     </aside>
@@ -134,5 +134,8 @@
   <script src="js/sheets-integration.js"></script>
   <script src="js/chatbase-ai.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- Add this before your other scripts -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </body>
 </html>

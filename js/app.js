@@ -1,5 +1,5 @@
 // ========================================
-// HYDROFIT - COMPLETE APPLICATION (FIXED)
+// HYDROFIT - COMPLETE APPLICATION (FULLY FIXED)
 // ========================================
 
 // Global variables
@@ -604,7 +604,7 @@ async function loadProfile() {
 }
 
 // ========================================
-// ACTIVITIES FOR STUDENTS (from professor)
+// ACTIVITIES FOR STUDENTS
 // ========================================
 
 async function loadActivitiesForStudents() {
@@ -645,7 +645,7 @@ async function loadActivitiesForStudents() {
 }
 
 // ========================================
-// ATTENDANCE TRACKER (View only)
+// ATTENDANCE TRACKER
 // ========================================
 
 async function loadAttendanceTracker() {
@@ -676,7 +676,7 @@ async function loadAttendanceTracker() {
 }
 
 // ========================================
-// TEACHER DASHBOARD (Rest of the functions remain the same)
+// TEACHER DASHBOARD
 // ========================================
 
 async function loadTeacherDashboard() {
@@ -799,8 +799,10 @@ async function loadTeacherDashboard() {
     
     container.innerHTML = dashboardHtml;
     
-    // Setup QR Scanner
-    setupQRScanner();
+    // Setup QR Scanner (MUST be called after DOM is ready)
+    setTimeout(() => {
+        setupQRScanner();
+    }, 100);
     
     // Setup buttons
     const publishBtn = document.getElementById('publishActivityBtn');
@@ -890,7 +892,190 @@ async function loadTeacherDashboard() {
 }
 
 // ========================================
-// HELPER FUNCTIONS (renderStudentAttendanceTable, renderActivitiesList, etc.)
+// QR SCANNER FOR ATTENDANCE (FULLY FIXED)
+// ========================================
+
+function setupQRScanner() {
+    let html5QrCode = null;
+    const startBtn = document.getElementById('startScannerBtn');
+    const stopBtn = document.getElementById('stopScannerBtn');
+    const resultDiv = document.getElementById('qr-result');
+    
+    if (!startBtn) {
+        console.log("Scanner buttons not found yet");
+        return;
+    }
+    
+    // Remove existing event listeners by cloning and replacing
+    const newStartBtn = startBtn.cloneNode(true);
+    startBtn.parentNode.replaceChild(newStartBtn, startBtn);
+    
+    const newStopBtn = stopBtn.cloneNode(true);
+    stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
+    
+    const finalStartBtn = document.getElementById('startScannerBtn');
+    const finalStopBtn = document.getElementById('stopScannerBtn');
+    
+    if (!finalStartBtn) return;
+    
+    finalStartBtn.onclick = async function() {
+        console.log("Start scanner clicked");
+        
+        if (resultDiv) resultDiv.innerHTML = '';
+        
+        // Check if library is loaded
+        if (typeof Html5Qrcode === 'undefined') {
+            if (resultDiv) {
+                resultDiv.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 8px;">
+                    ❌ QR Scanner library not loaded. Please refresh the page.
+                </div>`;
+            }
+            showToast('QR Scanner library not loaded. Please refresh the page.', 'error');
+            return;
+        }
+        
+        try {
+            if (html5QrCode) {
+                try {
+                    await html5QrCode.stop();
+                } catch(e) {}
+                html5QrCode = null;
+            }
+            
+            html5QrCode = new Html5Qrcode("qr-reader");
+            
+            const devices = await Html5Qrcode.getCameras();
+            console.log("Cameras found:", devices);
+            
+            if (devices && devices.length > 0) {
+                let cameraId = devices[0].id;
+                for (let i = 0; i < devices.length; i++) {
+                    if (devices[i].label.toLowerCase().includes('back') || 
+                        devices[i].label.toLowerCase().includes('environment')) {
+                        cameraId = devices[i].id;
+                        break;
+                    }
+                }
+                
+                await html5QrCode.start(
+                    cameraId,
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    async (decodedText) => {
+                        console.log("QR Scanned:", decodedText);
+                        
+                        try {
+                            const qrData = JSON.parse(decodedText);
+                            if (qrData.schoolId && qrData.name) {
+                                showLoadingOverlay();
+                                const result = await recordAttendance(qrData.schoolId);
+                                hideLoadingOverlay();
+                                
+                                if (result.success) {
+                                    if (resultDiv) {
+                                        resultDiv.innerHTML = `<div style="color: green; padding: 15px; background: #d4edda; border-radius: 8px; text-align: center;">
+                                            <i class="fas fa-check-circle" style="font-size: 2rem;"></i><br>
+                                            ✅ Attendance recorded for <strong>${escapeHtml(qrData.name)}</strong>!<br>
+                                            Total attendance: <strong>${result.attendanceCount}</strong> classes
+                                        </div>`;
+                                    }
+                                    showToast(`Attendance recorded for ${qrData.name}!`, 'success');
+                                    
+                                    const students = await getAllStudents();
+                                    const attendanceTable = document.querySelector('#teacherAttendanceTab .card.mt-4');
+                                    if (attendanceTable) {
+                                        attendanceTable.innerHTML = `
+                                            <h3><i class="fas fa-users"></i> Student Attendance Records</h3>
+                                            ${renderStudentAttendanceTable(students)}
+                                        `;
+                                    }
+                                } else {
+                                    if (resultDiv) {
+                                        resultDiv.innerHTML = `<div style="color: red; padding: 15px; background: #f8d7da; border-radius: 8px; text-align: center;">
+                                            <i class="fas fa-exclamation-circle" style="font-size: 2rem;"></i><br>
+                                            ❌ ${result.message}
+                                        </div>`;
+                                    }
+                                    showToast(result.message, 'error');
+                                }
+                            } else {
+                                if (resultDiv) {
+                                    resultDiv.innerHTML = `<div style="color: red; padding: 15px; background: #f8d7da; border-radius: 8px; text-align: center;">
+                                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i><br>
+                                        ❌ Invalid QR code format. Please scan a valid student QR code.
+                                    </div>`;
+                                }
+                            }
+                        } catch (e) {
+                            console.error("QR Parse error:", e);
+                            if (resultDiv) {
+                                resultDiv.innerHTML = `<div style="color: red; padding: 15px; background: #f8d7da; border-radius: 8px; text-align: center;">
+                                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i><br>
+                                    ❌ Invalid QR code. Please scan a valid student QR code.
+                                </div>`;
+                            }
+                        }
+                        
+                        setTimeout(async () => {
+                            if (html5QrCode && html5QrCode.isScanning) {
+                                try {
+                                    await html5QrCode.stop();
+                                    html5QrCode = null;
+                                    if (finalStartBtn) finalStartBtn.style.display = 'inline-block';
+                                    if (finalStopBtn) finalStopBtn.style.display = 'none';
+                                } catch(e) {}
+                            }
+                        }, 5000);
+                    },
+                    (errorMessage) => {
+                        console.log("Scan error:", errorMessage);
+                    }
+                );
+                
+                finalStartBtn.style.display = 'none';
+                finalStopBtn.style.display = 'inline-block';
+                showToast('Scanner started. Position QR code in front of camera.', 'success');
+                
+            } else {
+                if (resultDiv) {
+                    resultDiv.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 8px;">
+                        ❌ No cameras found on this device.
+                    </div>`;
+                }
+                showToast('No camera found on this device', 'error');
+            }
+        } catch (err) {
+            console.error("Scanner start error:", err);
+            if (resultDiv) {
+                resultDiv.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 8px;">
+                    ❌ Camera error: ${err.message || err}
+                </div>`;
+            }
+            showToast(`Camera error: ${err.message || 'Please check camera permissions'}`, 'error');
+            finalStartBtn.style.display = 'inline-block';
+            finalStopBtn.style.display = 'none';
+        }
+    };
+    
+    finalStopBtn.onclick = async function() {
+        console.log("Stop scanner clicked");
+        
+        if (html5QrCode) {
+            try {
+                await html5QrCode.stop();
+                html5QrCode = null;
+            } catch(e) {}
+        }
+        
+        finalStartBtn.style.display = 'inline-block';
+        finalStopBtn.style.display = 'none';
+        
+        if (resultDiv) resultDiv.innerHTML = '';
+        showToast('Scanner stopped', 'info');
+    };
+}
+
+// ========================================
+// RENDER FUNCTIONS
 // ========================================
 
 function renderStudentAttendanceTable(students) {
@@ -974,109 +1159,6 @@ function renderAnnouncementsList(announcements) {
             <p style="margin-top: 8px;">${escapeHtml(a.content)}</p>
         </div>
     `).join('');
-}
-
-// ========================================
-// QR SCANNER FOR ATTENDANCE
-// ========================================
-
-function setupQRScanner() {
-    let html5QrCode = null;
-    const startBtn = document.getElementById('startScannerBtn');
-    const stopBtn = document.getElementById('stopScannerBtn');
-    const resultDiv = document.getElementById('qr-result');
-    
-    if (!startBtn) return;
-    
-    startBtn.onclick = async () => {
-        if (html5QrCode) {
-            await html5QrCode.stop();
-        }
-        
-        html5QrCode = new Html5Qrcode("qr-reader");
-        
-        try {
-            const devices = await Html5Qrcode.getCameras();
-            if (devices && devices.length) {
-                const cameraId = devices[0].id;
-                await html5QrCode.start(
-                    cameraId,
-                    {
-                        fps: 10,
-                        qrbox: { width: 250, height: 250 }
-                    },
-                    async (decodedText) => {
-                        try {
-                            const qrData = JSON.parse(decodedText);
-                            if (qrData.schoolId && qrData.name) {
-                                showLoadingOverlay();
-                                const result = await recordAttendance(qrData.schoolId);
-                                hideLoadingOverlay();
-                                
-                                if (result.success) {
-                                    resultDiv.innerHTML = `<div style="color: green; padding: 10px; background: #d4edda; border-radius: 8px;">
-                                        ✅ Attendance recorded for ${escapeHtml(qrData.name)}!<br>
-                                        Total: ${result.attendanceCount} classes
-                                    </div>`;
-                                    showToast(`Attendance recorded for ${qrData.name}!`, 'success');
-                                    
-                                    const students = await getAllStudents();
-                                    const attendanceTable = document.querySelector('#teacherAttendanceTab .card.mt-4');
-                                    if (attendanceTable) {
-                                        attendanceTable.innerHTML = `
-                                            <h3><i class="fas fa-users"></i> Student Attendance Records</h3>
-                                            ${renderStudentAttendanceTable(students)}
-                                        `;
-                                    }
-                                } else {
-                                    resultDiv.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 8px;">
-                                        ❌ ${result.message}
-                                    </div>`;
-                                    showToast(result.message, 'error');
-                                }
-                            } else {
-                                resultDiv.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 8px;">
-                                    ❌ Invalid QR code format
-                                </div>`;
-                            }
-                        } catch (e) {
-                            resultDiv.innerHTML = `<div style="color: red; padding: 10px; background: #f8d7da; border-radius: 8px;">
-                                ❌ Invalid QR code
-                            </div>`;
-                        }
-                        
-                        setTimeout(async () => {
-                            if (html5QrCode) {
-                                await html5QrCode.stop();
-                                html5QrCode = null;
-                                startBtn.style.display = 'inline-block';
-                                stopBtn.style.display = 'none';
-                            }
-                        }, 3000);
-                    },
-                    (error) => {
-                        console.log("Scan error:", error);
-                    }
-                );
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'inline-block';
-            } else {
-                resultDiv.innerHTML = `<div style="color: red;">❌ No cameras found</div>`;
-            }
-        } catch (err) {
-            resultDiv.innerHTML = `<div style="color: red;">❌ Camera error: ${err}</div>`;
-        }
-    };
-    
-    stopBtn.onclick = async () => {
-        if (html5QrCode) {
-            await html5QrCode.stop();
-            html5QrCode = null;
-            startBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'none';
-            resultDiv.innerHTML = '';
-        }
-    };
 }
 
 // ========================================

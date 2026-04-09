@@ -1050,3 +1050,31 @@ input:disabled {
     cursor: not-allowed;
     transform: none;
 }
+
+/* QR Scanner Styles */
+#qr-reader {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+#qr-reader video {
+    width: 100%;
+    height: auto;
+    border-radius: 16px;
+}
+
+#qr-reader__dashboard {
+    padding: 10px;
+}
+
+#qr-result {
+    min-height: 100px;
+}
+
+#startScannerBtn, #stopScannerBtn {
+    margin: 10px;
+    min-width: 120px;
+}
