@@ -1,6 +1,45 @@
 // ========================================
-// GOOGLE SHEETS INTEGRATION - NO POINTS SYSTEM
+// GOOGLE SHEETS INTEGRATION - WITH TEACHER DASHBOARD
 // ========================================
+
+// Teacher credentials (built-in)
+const TEACHER_CREDENTIALS = {
+    schoolId: "Prof.David",
+    password: "instructor",
+    name: "Prof. David Manongsong",
+    subject: "Pathfit",
+    program: "Physical Education"
+};
+
+// ========================================
+// TEACHER AUTHENTICATION
+// ========================================
+
+function loginTeacher(schoolId, password) {
+    if (schoolId === TEACHER_CREDENTIALS.schoolId && password === TEACHER_CREDENTIALS.password) {
+        localStorage.setItem("hydrofit_teacher_logged_in", "true");
+        localStorage.setItem("hydrofit_teacher", JSON.stringify(TEACHER_CREDENTIALS));
+        return { success: true, teacher: TEACHER_CREDENTIALS };
+    }
+    return { success: false, message: "Invalid teacher credentials" };
+}
+
+function isTeacherLoggedIn() {
+    return localStorage.getItem("hydrofit_teacher_logged_in") === "true";
+}
+
+function getCurrentTeacher() {
+    const teacherJson = localStorage.getItem("hydrofit_teacher");
+    if (teacherJson) {
+        return JSON.parse(teacherJson);
+    }
+    return null;
+}
+
+function logoutTeacher() {
+    localStorage.removeItem("hydrofit_teacher_logged_in");
+    localStorage.removeItem("hydrofit_teacher");
+}
 
 // Test connection to Google Sheets
 async function testConnection() {
@@ -170,6 +209,126 @@ async function getUserActivity(schoolId) {
         return [];
     } catch (error) {
         console.error("Get activity error:", error);
+        return [];
+    }
+}
+
+// ========================================
+// TEACHER DASHBOARD FUNCTIONS
+// ========================================
+
+// Get all students
+async function getAllStudents() {
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getAllStudents`);
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        }
+        return [];
+    } catch (error) {
+        console.error("Get students error:", error);
+        return [];
+    }
+}
+
+// Publish activity/assignment
+async function publishActivity(activityData) {
+    try {
+        const formData = new URLSearchParams();
+        formData.append("action", "publishActivity");
+        formData.append("title", activityData.title);
+        formData.append("description", activityData.description);
+        formData.append("dueDate", activityData.dueDate);
+        formData.append("timestamp", new Date().toISOString());
+        
+        const response = await fetch(GOOGLE_SHEETS_URL, { method: "POST", body: formData });
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error("Publish activity error:", error);
+        return { success: false, message: "Failed to publish activity" };
+    }
+}
+
+// Get all activities
+async function getActivities() {
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getActivities`);
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        }
+        return [];
+    } catch (error) {
+        console.error("Get activities error:", error);
+        return [];
+    }
+}
+
+// Upload learning handout
+async function uploadHandout(handoutData) {
+    try {
+        const formData = new URLSearchParams();
+        formData.append("action", "uploadHandout");
+        formData.append("title", handoutData.title);
+        formData.append("description", handoutData.description);
+        formData.append("fileUrl", handoutData.fileUrl);
+        formData.append("timestamp", new Date().toISOString());
+        
+        const response = await fetch(GOOGLE_SHEETS_URL, { method: "POST", body: formData });
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error("Upload handout error:", error);
+        return { success: false, message: "Failed to upload handout" };
+    }
+}
+
+// Get all handouts
+async function getHandouts() {
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getHandouts`);
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        }
+        return [];
+    } catch (error) {
+        console.error("Get handouts error:", error);
+        return [];
+    }
+}
+
+// Publish announcement
+async function publishAnnouncement(announcementData) {
+    try {
+        const formData = new URLSearchParams();
+        formData.append("action", "publishAnnouncement");
+        formData.append("title", announcementData.title);
+        formData.append("content", announcementData.content);
+        formData.append("timestamp", new Date().toISOString());
+        
+        const response = await fetch(GOOGLE_SHEETS_URL, { method: "POST", body: formData });
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error("Publish announcement error:", error);
+        return { success: false, message: "Failed to publish announcement" };
+    }
+}
+
+// Get all announcements
+async function getAnnouncements() {
+    try {
+        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getAnnouncements`);
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        }
+        return [];
+    } catch (error) {
+        console.error("Get announcements error:", error);
         return [];
     }
 }

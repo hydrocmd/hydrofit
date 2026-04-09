@@ -1,10 +1,12 @@
 // ========================================
-// HYDROFIT - MAIN APPLICATION (NO POINTS)
+// HYDROFIT - COMPLETE APPLICATION
 // ========================================
 
 // Global variables
 let currentUser = null;
 let currentTab = "dashboard";
+let isTeacherMode = false;
+let slideInterval = null;
 
 // ========================================
 // INITIALIZATION
@@ -13,8 +15,13 @@ let currentTab = "dashboard";
 document.addEventListener('DOMContentLoaded', function() {
     console.log("HYDROFIT Initializing...");
     
+    // Check if teacher is logged in
+    if (isTeacherLoggedIn()) {
+        isTeacherMode = true;
+        showTeacherApp();
+    }
     // Check if user is logged in
-    if (isLoggedIn()) {
+    else if (isLoggedIn()) {
         currentUser = getCurrentUser();
         showApp();
     } else {
@@ -43,7 +50,6 @@ function setupEventListeners() {
     if (showRegisterLink) {
         showRegisterLink.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log("Switching to register modal");
             showRegisterModal();
         });
     }
@@ -53,7 +59,6 @@ function setupEventListeners() {
     if (showLoginLink) {
         showLoginLink.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log("Switching to login modal");
             showLoginModal();
         });
     }
@@ -107,16 +112,6 @@ function setupEventListeners() {
             }
         });
     }
-    
-    // Enter key press for register
-    const regConfirmPassword = document.getElementById('regConfirmPassword');
-    if (regConfirmPassword) {
-        regConfirmPassword.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                handleRegister();
-            }
-        });
-    }
 }
 
 // ========================================
@@ -124,21 +119,16 @@ function setupEventListeners() {
 // ========================================
 
 function showLoginModal() {
-    console.log("Showing login modal");
     document.getElementById('loginModal').style.display = 'flex';
     document.getElementById('registerModal').style.display = 'none';
-    
-    // Clear inputs
     document.getElementById('loginSchoolId').value = '';
     document.getElementById('loginPassword').value = '';
 }
 
 function showRegisterModal() {
-    console.log("Showing register modal");
     document.getElementById('loginModal').style.display = 'none';
     document.getElementById('registerModal').style.display = 'flex';
     
-    // Clear register form
     document.getElementById('regFullName').value = '';
     document.getElementById('regSchoolId').value = '';
     document.getElementById('regSubject').value = '';
@@ -150,16 +140,31 @@ function showRegisterModal() {
 }
 
 function showApp() {
-    console.log("Showing main app");
     document.querySelector('.app-container').style.display = 'flex';
     document.getElementById('loginModal').style.display = 'none';
     document.getElementById('registerModal').style.display = 'none';
     
-    // Load dashboard by default
-    switchTab('dashboard');
+    // Hide teacher-only button
+    document.querySelectorAll('.teacher-only').forEach(btn => {
+        btn.style.display = 'none';
+    });
     
-    // Update user display
+    switchTab('dashboard');
     updateUserDisplay();
+}
+
+function showTeacherApp() {
+    document.querySelector('.app-container').style.display = 'flex';
+    document.getElementById('loginModal').style.display = 'none';
+    document.getElementById('registerModal').style.display = 'none';
+    
+    // Show teacher-only button
+    document.querySelectorAll('.teacher-only').forEach(btn => {
+        btn.style.display = 'flex';
+    });
+    
+    isTeacherMode = true;
+    switchTab('teacher-dashboard');
 }
 
 // ========================================
@@ -167,10 +172,18 @@ function showApp() {
 // ========================================
 
 async function handleLogin() {
-    console.log("Login attempt...");
-    
     const schoolId = document.getElementById('loginSchoolId').value.trim();
     const password = document.getElementById('loginPassword').value;
+    
+    // Check for teacher login first (built-in account)
+    if (schoolId === "Prof.David" && password === "instructor") {
+        const result = loginTeacher(schoolId, password);
+        if (result.success) {
+            showToast(`Welcome Professor ${result.teacher.name}!`, 'success');
+            showTeacherApp();
+        }
+        return;
+    }
     
     if (!schoolId || !password) {
         showToast('Please enter School ID and Password', 'error');
@@ -196,8 +209,6 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
-    console.log("Register attempt...");
-    
     const userData = {
         fullName: document.getElementById('regFullName').value.trim(),
         schoolId: document.getElementById('regSchoolId').value.trim(),
@@ -209,7 +220,6 @@ async function handleRegister() {
         confirmPassword: document.getElementById('regConfirmPassword').value
     };
     
-    // Validation
     if (!userData.fullName || !userData.schoolId || !userData.password) {
         showToast('Please fill in all required fields', 'error');
         return;
@@ -253,9 +263,14 @@ async function handleRegister() {
 }
 
 function handleLogout() {
-    console.log("Logging out...");
-    logoutUser();
-    currentUser = null;
+    if (isTeacherMode) {
+        logoutTeacher();
+        isTeacherMode = false;
+    } else {
+        logoutUser();
+        currentUser = null;
+    }
+    
     document.querySelector('.sidebar').classList.remove('open');
     showLoginModal();
     showToast('Logged out successfully', 'success');
@@ -295,7 +310,8 @@ function switchTab(tabName) {
         calorie: 'Calorie Tracker',
         bmi: 'BMI Tracker',
         recovery: 'Recovery & Rest',
-        bodytype: 'Body Type Analysis'
+        bodytype: 'Body Type Analysis',
+        'teacher-dashboard': 'Teacher Dashboard'
     };
     
     document.getElementById('active-title').innerText = titles[tabName] || 'HYDROFIT';
@@ -308,29 +324,25 @@ async function loadTabContent(tabName) {
     const container = document.getElementById('tab-content');
     container.innerHTML = '<div class="loading-placeholder"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
     
-    switch(tabName) {
-        case 'dashboard':
-            await loadDashboard();
-            break;
-        case 'profile':
-            await loadProfile();
-            break;
-        case 'ranking':
-            await loadRanking();
-            break;
-        case 'activity':
-            await loadActivity();
-            break;
-        case 'attendance':
-            await loadAttendanceTracker();
-            break;
-        default:
-            await loadGenericTab(tabName);
+    if (isTeacherMode && tabName === 'teacher-dashboard') {
+        await loadTeacherDashboard();
+    } else if (tabName === 'dashboard') {
+        await loadDashboard();
+    } else if (tabName === 'profile') {
+        await loadProfile();
+    } else if (tabName === 'ranking') {
+        await loadRanking();
+    } else if (tabName === 'activity') {
+        await loadActivity();
+    } else if (tabName === 'attendance') {
+        await loadAttendanceTracker();
+    } else {
+        await loadGenericTab(tabName);
     }
 }
 
 // ========================================
-// DASHBOARD
+// DASHBOARD WITH SLIDESHOW
 // ========================================
 
 async function loadDashboard() {
@@ -341,17 +353,16 @@ async function loadDashboard() {
             <div class="slideshow-container" id="slideshowContainer">
                 <div class="slideshow-overlay">
                     <div class="school-badge">
-                        <img src="https://upload.wikimedia.org/wikipedia/en/thumb/c/c9/Mindoro_State_University_seal.png/200px-Mindoro_State_University_seal.png" alt="MinSU" class="minsu-logo" onerror="this.style.display='none'">
+                        <img src="https://ik.imagekit.io/0sf7uub8b/HydroFit/images%20(4).jpg?updatedAt=1775655891511" alt="MinSU" class="minsu-logo">
                         <div class="school-text">
                             <strong>Mindoro State University</strong>
                             <span>Calapan City Campus</span>
                         </div>
                     </div>
                 </div>
-                <div class="slide active slide-placeholder" style="background: linear-gradient(135deg, var(--primary), var(--dark));">
-                    <i class="fas fa-water" style="font-size: 5rem; margin-right: 20px;"></i>
-                    <span>HYDROFIT</span>
-                </div>
+                <div class="slide" style="background-image: url('https://ik.imagekit.io/0sf7uub8b/HydroFit/slides_1.jpg?updatedAt=1775652185255'); background-size: cover; background-position: center;"></div>
+                <div class="slide" style="background-image: url('https://ik.imagekit.io/0sf7uub8b/HydroFit/slides_2.jpg?updatedAt=1775652283140'); background-size: cover; background-position: center;"></div>
+                <div class="slide" style="background-image: url('https://ik.imagekit.io/0sf7uub8b/HydroFit/slides_3.jpg?updatedAt=1775652127029'); background-size: cover; background-position: center;"></div>
             </div>
             <div class="slide-dots" id="slideDots"></div>
         </div>
@@ -375,26 +386,61 @@ async function loadDashboard() {
             
             <div class="card">
                 <h3><i class="fas fa-qrcode"></i> QR Code</h3>
-                <p>Scan to identify yourself</p>
+                <p>Scan to record attendance</p>
                 <button class="btn btn-sm mt-4" onclick="showQRCode()">Show QR Code →</button>
             </div>
         </div>
     `;
     
-    const quickActionsHtml = `
-        <div class="card" style="margin-top: 20px;">
-            <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
-            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                <button class="btn" onclick="recordTodayAttendance()"><i class="fas fa-calendar-plus"></i> Record Attendance</button>
-                <button class="btn btn-secondary" onclick="switchTab('profile')"><i class="fas fa-user"></i> My Profile</button>
-                <button class="btn btn-secondary" onclick="switchTab('ranking')"><i class="fas fa-trophy"></i> View Rankings</button>
-                <button class="btn btn-secondary" onclick="showQRCode()"><i class="fas fa-qrcode"></i> My QR Code</button>
-            </div>
-        </div>
-    `;
+    container.innerHTML = slideshowHtml + statsHtml;
     
-    container.innerHTML = slideshowHtml + statsHtml + quickActionsHtml;
+    // Initialize slideshow
     initSlideshow();
+}
+
+function initSlideshow() {
+    let slideIndex = 0;
+    const slides = document.querySelectorAll('.slide');
+    const dotsContainer = document.querySelector('.slide-dots');
+    
+    if (!slides.length) return;
+    
+    // Clear existing dots
+    if (dotsContainer) {
+        dotsContainer.innerHTML = '';
+        
+        // Create dots
+        slides.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.className = 'dot' + (i === 0 ? ' active' : '');
+            dot.onclick = () => showSlide(i);
+            dotsContainer.appendChild(dot);
+        });
+    }
+    
+    function showSlide(n) {
+        slides.forEach(slide => slide.classList.remove('active'));
+        if (dotsContainer) {
+            document.querySelectorAll('.dot').forEach(dot => dot.classList.remove('active'));
+        }
+        slideIndex = n;
+        if (slides[slideIndex]) slides[slideIndex].classList.add('active');
+        if (dotsContainer && document.querySelectorAll('.dot')[slideIndex]) {
+            document.querySelectorAll('.dot')[slideIndex].classList.add('active');
+        }
+    }
+    
+    function nextSlide() {
+        slideIndex = (slideIndex + 1) % slides.length;
+        showSlide(slideIndex);
+    }
+    
+    // Show first slide
+    if (slides[0]) slides[0].classList.add('active');
+    
+    // Auto-advance every 5 seconds
+    if (slideInterval) clearInterval(slideInterval);
+    slideInterval = setInterval(nextSlide, 5000);
 }
 
 // ========================================
@@ -596,6 +642,334 @@ async function recordTodayAttendance() {
 }
 
 // ========================================
+// TEACHER DASHBOARD
+// ========================================
+
+async function loadTeacherDashboard() {
+    const container = document.getElementById('tab-content');
+    const teacher = getCurrentTeacher();
+    const students = await getAllStudents();
+    
+    const dashboardHtml = `
+        <div class="profile-card" style="margin-bottom: 30px;">
+            <div class="profile-avatar">
+                <i class="fas fa-chalkboard-teacher"></i>
+            </div>
+            <h2>${teacher.name}</h2>
+            <p>Professor of ${teacher.subject}</p>
+            <p>${teacher.program}</p>
+        </div>
+        
+        <div class="teacher-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <button class="btn teacher-tab-btn active" data-teacher-tab="attendance">📋 Attendance Records</button>
+            <button class="btn btn-secondary teacher-tab-btn" data-teacher-tab="activities">📝 Activities</button>
+            <button class="btn btn-secondary teacher-tab-btn" data-teacher-tab="handouts">📚 Handouts</button>
+            <button class="btn btn-secondary teacher-tab-btn" data-teacher-tab="announcements">📢 Announcements</button>
+        </div>
+        
+        <div id="teacherAttendanceTab" class="teacher-tab-content active">
+            <div class="card">
+                <h3><i class="fas fa-qrcode"></i> QR Code Scanner</h3>
+                <div style="text-align: center; padding: 20px;">
+                    <div id="qr-reader" style="width: 100%; max-width: 300px; margin: 0 auto;"></div>
+                    <div id="qr-result" style="margin-top: 20px;"></div>
+                    <button class="btn mt-4" id="startScannerBtn">Start Scanner</button>
+                    <button class="btn btn-secondary mt-4" id="stopScannerBtn" style="display: none;">Stop Scanner</button>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <h3><i class="fas fa-users"></i> Student Attendance Records</h3>
+                <div style="overflow-x: auto;">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr><th>Student Name</th><th>School ID</th><th>Program</th><th>Attendance Count</th></tr>
+                        </thead>
+                        <tbody>
+                            ${students.map(s => `
+                                <tr>
+                                    <td>${escapeHtml(s.fullName)}</td>
+                                    <td>${s.schoolId}</td>
+                                    <td>${s.program}</td>
+                                    <td><strong>${s.attendanceCount}</strong> classes</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="teacherActivitiesTab" class="teacher-tab-content" style="display: none;">
+            <div class="card">
+                <h3><i class="fas fa-plus-circle"></i> Publish Activity/Assignment</h3>
+                <div class="form-group">
+                    <label>Activity Title</label>
+                    <input type="text" id="activityTitle" class="modal-input" placeholder="Enter activity title">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="activityDesc" class="modal-input" rows="3" placeholder="Enter activity description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="activityDueDate" class="modal-input">
+                </div>
+                <button class="btn" id="publishActivityBtn">Publish Activity</button>
+            </div>
+            
+            <div class="card mt-4">
+                <h3><i class="fas fa-list"></i> Published Activities</h3>
+                <div id="activitiesList">Loading...</div>
+            </div>
+        </div>
+        
+        <div id="teacherHandoutsTab" class="teacher-tab-content" style="display: none;">
+            <div class="card">
+                <h3><i class="fas fa-upload"></i> Upload Learning Handout</h3>
+                <div class="form-group">
+                    <label>Handout Title</label>
+                    <input type="text" id="handoutTitle" class="modal-input" placeholder="Enter handout title">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="handoutDesc" class="modal-input" rows="3" placeholder="Enter handout description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>File URL (Google Drive or Direct Link)</label>
+                    <input type="url" id="handoutUrl" class="modal-input" placeholder="https://...">
+                </div>
+                <button class="btn" id="uploadHandoutBtn">Upload Handout</button>
+            </div>
+            
+            <div class="card mt-4">
+                <h3><i class="fas fa-download"></i> Available Handouts</h3>
+                <div id="handoutsList">Loading...</div>
+            </div>
+        </div>
+        
+        <div id="teacherAnnouncementsTab" class="teacher-tab-content" style="display: none;">
+            <div class="card">
+                <h3><i class="fas fa-bullhorn"></i> Make Announcement</h3>
+                <div class="form-group">
+                    <label>Announcement Title</label>
+                    <input type="text" id="announcementTitle" class="modal-input" placeholder="Enter announcement title">
+                </div>
+                <div class="form-group">
+                    <label>Content</label>
+                    <textarea id="announcementContent" class="modal-input" rows="4" placeholder="Enter announcement content"></textarea>
+                </div>
+                <button class="btn" id="publishAnnouncementBtn">Publish Announcement</button>
+            </div>
+            
+            <div class="card mt-4">
+                <h3><i class="fas fa-history"></i> Previous Announcements</h3>
+                <div id="announcementsList">Loading...</div>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = dashboardHtml;
+    
+    // Load data
+    await loadActivitiesList();
+    await loadHandoutsList();
+    await loadAnnouncementsList();
+    
+    // Setup teacher tab switching
+    document.querySelectorAll('.teacher-tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tab = this.getAttribute('data-teacher-tab');
+            document.querySelectorAll('.teacher-tab-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            document.querySelectorAll('.teacher-tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            
+            document.getElementById(`teacher${tab.charAt(0).toUpperCase() + tab.slice(1)}Tab`).style.display = 'block';
+        });
+    });
+    
+    // Setup QR Scanner
+    setupQRScanner();
+    
+    // Setup buttons
+    document.getElementById('publishActivityBtn').addEventListener('click', publishActivity);
+    document.getElementById('uploadHandoutBtn').addEventListener('click', uploadHandout);
+    document.getElementById('publishAnnouncementBtn').addEventListener('click', publishAnnouncement);
+}
+
+function setupQRScanner() {
+    let html5QrCode = null;
+    const startBtn = document.getElementById('startScannerBtn');
+    const stopBtn = document.getElementById('stopScannerBtn');
+    const resultDiv = document.getElementById('qr-result');
+    
+    startBtn.addEventListener('click', async () => {
+        if (html5QrCode) {
+            await html5QrCode.stop();
+        }
+        
+        html5QrCode = new Html5Qrcode("qr-reader");
+        
+        try {
+            const devices = await Html5Qrcode.getCameras();
+            if (devices && devices.length) {
+                const cameraId = devices[0].id;
+                await html5QrCode.start(
+                    cameraId,
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 }
+                    },
+                    (decodedText) => {
+                        // Handle QR scan result
+                        resultDiv.innerHTML = `<div style="color: green;">✅ QR Scanned: ${decodedText}</div>`;
+                        showToast('QR Code scanned successfully!', 'success');
+                    },
+                    (error) => {
+                        console.log("Scan error:", error);
+                    }
+                );
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+            }
+        } catch (err) {
+            resultDiv.innerHTML = `<div style="color: red;">❌ Camera error: ${err}</div>`;
+        }
+    });
+    
+    stopBtn.addEventListener('click', async () => {
+        if (html5QrCode) {
+            await html5QrCode.stop();
+            html5QrCode = null;
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            resultDiv.innerHTML = '';
+        }
+    });
+}
+
+async function loadActivitiesList() {
+    const container = document.getElementById('activitiesList');
+    const activities = await getActivities();
+    
+    if (activities.length === 0) {
+        container.innerHTML = '<p>No activities published yet.</p>';
+        return;
+    }
+    
+    container.innerHTML = activities.map(act => `
+        <div style="padding: 15px; border-bottom: 1px solid var(--gray);">
+            <strong>${escapeHtml(act.title)}</strong>
+            <small style="color: var(--primary);">Due: ${act.dueDate || 'No due date'}</small>
+            <p style="margin-top: 8px;">${escapeHtml(act.description)}</p>
+        </div>
+    `).join('');
+}
+
+async function loadHandoutsList() {
+    const container = document.getElementById('handoutsList');
+    const handouts = await getHandouts();
+    
+    if (handouts.length === 0) {
+        container.innerHTML = '<p>No handouts uploaded yet.</p>';
+        return;
+    }
+    
+    container.innerHTML = handouts.map(h => `
+        <div style="padding: 15px; border-bottom: 1px solid var(--gray);">
+            <strong>${escapeHtml(h.title)}</strong>
+            <p>${escapeHtml(h.description)}</p>
+            <a href="${h.fileUrl}" target="_blank" class="btn btn-sm">Download Handout →</a>
+        </div>
+    `).join('');
+}
+
+async function loadAnnouncementsList() {
+    const container = document.getElementById('announcementsList');
+    const announcements = await getAnnouncements();
+    
+    if (announcements.length === 0) {
+        container.innerHTML = '<p>No announcements yet.</p>';
+        return;
+    }
+    
+    container.innerHTML = announcements.map(a => `
+        <div style="padding: 15px; border-bottom: 1px solid var(--gray);">
+            <strong>${escapeHtml(a.title)}</strong>
+            <small>${new Date(a.timestamp).toLocaleDateString()}</small>
+            <p style="margin-top: 8px;">${escapeHtml(a.content)}</p>
+        </div>
+    `).join('');
+}
+
+async function publishActivity() {
+    const title = document.getElementById('activityTitle').value.trim();
+    const description = document.getElementById('activityDesc').value.trim();
+    const dueDate = document.getElementById('activityDueDate').value;
+    
+    if (!title) {
+        showToast('Please enter activity title', 'error');
+        return;
+    }
+    
+    const result = await publishActivity({ title, description, dueDate });
+    if (result.success) {
+        showToast('Activity published successfully!', 'success');
+        document.getElementById('activityTitle').value = '';
+        document.getElementById('activityDesc').value = '';
+        document.getElementById('activityDueDate').value = '';
+        await loadActivitiesList();
+    } else {
+        showToast(result.message || 'Failed to publish activity', 'error');
+    }
+}
+
+async function uploadHandout() {
+    const title = document.getElementById('handoutTitle').value.trim();
+    const description = document.getElementById('handoutDesc').value.trim();
+    const fileUrl = document.getElementById('handoutUrl').value.trim();
+    
+    if (!title || !fileUrl) {
+        showToast('Please enter title and file URL', 'error');
+        return;
+    }
+    
+    const result = await uploadHandout({ title, description, fileUrl });
+    if (result.success) {
+        showToast('Handout uploaded successfully!', 'success');
+        document.getElementById('handoutTitle').value = '';
+        document.getElementById('handoutDesc').value = '';
+        document.getElementById('handoutUrl').value = '';
+        await loadHandoutsList();
+    } else {
+        showToast(result.message || 'Failed to upload handout', 'error');
+    }
+}
+
+async function publishAnnouncement() {
+    const title = document.getElementById('announcementTitle').value.trim();
+    const content = document.getElementById('announcementContent').value.trim();
+    
+    if (!title || !content) {
+        showToast('Please enter title and content', 'error');
+        return;
+    }
+    
+    const result = await publishAnnouncement({ title, content });
+    if (result.success) {
+        showToast('Announcement published successfully!', 'success');
+        document.getElementById('announcementTitle').value = '';
+        document.getElementById('announcementContent').value = '';
+        await loadAnnouncementsList();
+    } else {
+        showToast(result.message || 'Failed to publish announcement', 'error');
+    }
+}
+
+// ========================================
 // GENERIC TAB
 // ========================================
 
@@ -708,10 +1082,6 @@ function escapeHtml(str) {
         if (m === '>') return '&gt;';
         return m;
     });
-}
-
-function initSlideshow() {
-    console.log('Slideshow initialized');
 }
 
 // Make functions global for HTML onclick handlers
