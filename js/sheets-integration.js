@@ -1,15 +1,6 @@
 // ========================================
-// GOOGLE SHEETS INTEGRATION - WITH TEACHER DASHBOARD
+// HYDROFIT - GOOGLE SHEETS INTEGRATION
 // ========================================
-
-// Teacher credentials (built-in)
-const TEACHER_CREDENTIALS = {
-    schoolId: "Prof.David",
-    password: "instructor",
-    name: "Prof. David Manongsong",
-    subject: "Pathfit",
-    program: "Physical Education"
-};
 
 // ========================================
 // TEACHER AUTHENTICATION
@@ -41,97 +32,122 @@ function logoutTeacher() {
     localStorage.removeItem("hydrofit_teacher");
 }
 
-// Test connection to Google Sheets
-async function testConnection() {
-    try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=test`);
-        const result = await response.json();
-        console.log("Connection test:", result);
-        return result.success;
-    } catch (error) {
-        console.error("Connection failed:", error);
-        return false;
+// ========================================
+// DEMO MODE - STORAGE FUNCTIONS
+// ========================================
+
+function initDemoData() {
+    if (!localStorage.getItem("hydrofit_students")) {
+        localStorage.setItem("hydrofit_students", JSON.stringify(DEMO_STUDENTS));
+    }
+    if (!localStorage.getItem("hydrofit_activities")) {
+        localStorage.setItem("hydrofit_activities", JSON.stringify([]));
+    }
+    if (!localStorage.getItem("hydrofit_handouts")) {
+        localStorage.setItem("hydrofit_handouts", JSON.stringify([]));
+    }
+    if (!localStorage.getItem("hydrofit_announcements")) {
+        localStorage.setItem("hydrofit_announcements", JSON.stringify([]));
     }
 }
+
+initDemoData();
 
 // ========================================
 // AUTHENTICATION FUNCTIONS
 // ========================================
 
-// Login user
 async function loginUser(schoolId, password) {
     try {
-        const formData = new URLSearchParams();
-        formData.append("action", "login");
-        formData.append("schoolId", schoolId);
-        formData.append("password", password);
+        // Try Google Sheets first
+        if (GOOGLE_SHEETS_URL && GOOGLE_SHEETS_URL.includes("script.google.com")) {
+            const formData = new URLSearchParams();
+            formData.append("action", "login");
+            formData.append("schoolId", schoolId);
+            formData.append("password", password);
+            
+            const response = await fetch(GOOGLE_SHEETS_URL, { 
+                method: "POST", 
+                body: formData,
+                mode: 'cors'
+            }).catch(() => null);
+            
+            if (response && response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    const userData = {
+                        schoolId: result.schoolId,
+                        fullName: result.fullName,
+                        program: result.program,
+                        yearLevel: result.yearLevel,
+                        section: result.section,
+                        subject: result.subject,
+                        attendanceCount: result.attendanceCount || 0,
+                        lastLogin: new Date().toISOString()
+                    };
+                    localStorage.setItem("hydrofit_user", JSON.stringify(userData));
+                    localStorage.setItem("hydrofit_logged_in", "true");
+                    return { success: true, user: userData };
+                }
+            }
+        }
         
-        const response = await fetch(GOOGLE_SHEETS_URL, { 
-            method: "POST", 
-            body: formData 
-        });
-        const result = await response.json();
+        // Fallback to demo mode
+        const students = JSON.parse(localStorage.getItem("hydrofit_students"));
+        const student = students.find(s => s.schoolId === schoolId && s.password === password);
         
-        if (result.success) {
-            // Save user data to localStorage
+        if (student) {
             const userData = {
-                schoolId: result.schoolId,
-                fullName: result.fullName,
-                program: result.program,
-                yearLevel: result.yearLevel,
-                section: result.section,
-                subject: result.subject,
-                attendanceCount: result.attendanceCount || 0,
+                schoolId: student.schoolId,
+                fullName: student.fullName,
+                program: student.program,
+                yearLevel: student.yearLevel,
+                section: student.section,
+                subject: student.subject || "Pathfit",
+                attendanceCount: student.attendanceCount || 0,
                 lastLogin: new Date().toISOString()
             };
             localStorage.setItem("hydrofit_user", JSON.stringify(userData));
             localStorage.setItem("hydrofit_logged_in", "true");
-            
             return { success: true, user: userData };
-        } else {
-            return { success: false, message: result.message };
         }
+        
+        return { success: false, message: "Invalid School ID or Password" };
     } catch (error) {
         console.error("Login error:", error);
         return { success: false, message: "Network error. Please try again." };
     }
 }
 
-// Register user
 async function registerUser(userData) {
     try {
-        const formData = new URLSearchParams();
-        formData.append("action", "register");
-        formData.append("fullName", userData.fullName);
-        formData.append("schoolId", userData.schoolId);
-        formData.append("subject", userData.subject);
-        formData.append("program", userData.program);
-        formData.append("yearLevel", userData.yearLevel);
-        formData.append("section", userData.section);
-        formData.append("password", userData.password);
+        const students = JSON.parse(localStorage.getItem("hydrofit_students"));
         
-        const response = await fetch(GOOGLE_SHEETS_URL, { 
-            method: "POST", 
-            body: formData 
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            return { success: true, message: result.message };
-        } else {
-            return { success: false, message: result.message };
+        if (students.find(s => s.schoolId === userData.schoolId)) {
+            return { success: false, message: "School ID already registered" };
         }
+        
+        const newStudent = {
+            schoolId: userData.schoolId,
+            fullName: userData.fullName,
+            program: userData.program,
+            yearLevel: userData.yearLevel,
+            section: userData.section,
+            subject: userData.subject,
+            attendanceCount: 0,
+            password: userData.password
+        };
+        
+        students.push(newStudent);
+        localStorage.setItem("hydrofit_students", JSON.stringify(students));
+        
+        return { success: true, message: "Account created successfully!" };
     } catch (error) {
         console.error("Registration error:", error);
-        return { success: false, message: "Network error. Please try again." };
+        return { success: false, message: "Registration failed. Please try again." };
     }
 }
 
-// ========================================
-// USER DATA FUNCTIONS
-// ========================================
-
-// Get current logged in user
 function getCurrentUser() {
     const userJson = localStorage.getItem("hydrofit_user");
     if (userJson) {
@@ -140,75 +156,79 @@ function getCurrentUser() {
     return null;
 }
 
-// Check if user is logged in
 function isLoggedIn() {
     return localStorage.getItem("hydrofit_logged_in") === "true";
 }
 
-// Logout user
 function logoutUser() {
     localStorage.removeItem("hydrofit_user");
     localStorage.removeItem("hydrofit_logged_in");
 }
 
-// Record attendance only (no points)
+// ========================================
+// ATTENDANCE FUNCTIONS
+// ========================================
+
 async function recordAttendance(schoolId) {
     try {
-        const formData = new URLSearchParams();
-        formData.append("action", "recordAttendance");
-        formData.append("schoolId", schoolId);
-        formData.append("date", new Date().toISOString().split('T')[0]);
+        const students = JSON.parse(localStorage.getItem("hydrofit_students"));
+        const studentIndex = students.findIndex(s => s.schoolId === schoolId);
         
-        const response = await fetch(GOOGLE_SHEETS_URL, { 
-            method: "POST", 
-            body: formData 
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            // Update local user data
-            const currentUser = getCurrentUser();
-            if (currentUser && currentUser.schoolId === schoolId) {
-                currentUser.attendanceCount = result.attendanceCount;
-                localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
-            }
-            return { success: true, message: result.message };
+        if (studentIndex === -1) {
+            return { success: false, message: "Student not found" };
         }
-        return { success: false, message: result.message };
+        
+        const today = new Date().toISOString().split('T')[0];
+        const attendanceKey = `attendance_${schoolId}`;
+        const attendanceHistory = JSON.parse(localStorage.getItem(attendanceKey) || '[]');
+        
+        if (attendanceHistory.includes(today)) {
+            return { success: false, message: "Attendance already recorded today" };
+        }
+        
+        attendanceHistory.push(today);
+        localStorage.setItem(attendanceKey, JSON.stringify(attendanceHistory));
+        
+        students[studentIndex].attendanceCount = (students[studentIndex].attendanceCount || 0) + 1;
+        localStorage.setItem("hydrofit_students", JSON.stringify(students));
+        
+        // Update current user if it's the same
+        const currentUser = getCurrentUser();
+        if (currentUser && currentUser.schoolId === schoolId) {
+            currentUser.attendanceCount = students[studentIndex].attendanceCount;
+            localStorage.setItem("hydrofit_user", JSON.stringify(currentUser));
+        }
+        
+        return { 
+            success: true, 
+            message: "Attendance recorded successfully",
+            attendanceCount: students[studentIndex].attendanceCount
+        };
     } catch (error) {
         console.error("Record attendance error:", error);
         return { success: false, message: "Failed to record attendance" };
     }
 }
 
-// Get ranking data (by attendance only)
-async function getRankingData() {
+async function getAllStudents() {
     try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getRanking`);
-        const result = await response.json();
-        
-        if (result.success) {
-            return result.data;
-        }
-        return [];
+        const students = JSON.parse(localStorage.getItem("hydrofit_students"));
+        return students;
     } catch (error) {
-        console.error("Get ranking error:", error);
+        console.error("Get students error:", error);
         return [];
     }
 }
 
-// Get user's activity history
-async function getUserActivity(schoolId) {
+async function getRankingData() {
     try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getUserActivity&schoolId=${schoolId}`);
-        const result = await response.json();
-        
-        if (result.success) {
-            return result.data;
-        }
-        return [];
+        const students = JSON.parse(localStorage.getItem("hydrofit_students"));
+        const ranking = students
+            .map(s => ({ name: s.fullName, attendance: s.attendanceCount || 0, program: s.program }))
+            .sort((a, b) => b.attendance - a.attendance);
+        return ranking;
     } catch (error) {
-        console.error("Get activity error:", error);
+        console.error("Get ranking error:", error);
         return [];
     }
 }
@@ -217,116 +237,81 @@ async function getUserActivity(schoolId) {
 // TEACHER DASHBOARD FUNCTIONS
 // ========================================
 
-// Get all students
-async function getAllStudents() {
-    try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getAllStudents`);
-        const result = await response.json();
-        if (result.success) {
-            return result.data;
-        }
-        return [];
-    } catch (error) {
-        console.error("Get students error:", error);
-        return [];
-    }
-}
-
-// Publish activity/assignment
 async function publishActivity(activityData) {
     try {
-        const formData = new URLSearchParams();
-        formData.append("action", "publishActivity");
-        formData.append("title", activityData.title);
-        formData.append("description", activityData.description);
-        formData.append("dueDate", activityData.dueDate);
-        formData.append("timestamp", new Date().toISOString());
-        
-        const response = await fetch(GOOGLE_SHEETS_URL, { method: "POST", body: formData });
-        const result = await response.json();
-        return result;
+        const activities = JSON.parse(localStorage.getItem("hydrofit_activities") || '[]');
+        const newActivity = {
+            id: Date.now(),
+            ...activityData,
+            timestamp: new Date().toISOString()
+        };
+        activities.unshift(newActivity);
+        localStorage.setItem("hydrofit_activities", JSON.stringify(activities));
+        return { success: true, message: "Activity published successfully!" };
     } catch (error) {
         console.error("Publish activity error:", error);
         return { success: false, message: "Failed to publish activity" };
     }
 }
 
-// Get all activities
 async function getActivities() {
     try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getActivities`);
-        const result = await response.json();
-        if (result.success) {
-            return result.data;
-        }
-        return [];
+        const activities = JSON.parse(localStorage.getItem("hydrofit_activities") || '[]');
+        return activities;
     } catch (error) {
         console.error("Get activities error:", error);
         return [];
     }
 }
 
-// Upload learning handout
 async function uploadHandout(handoutData) {
     try {
-        const formData = new URLSearchParams();
-        formData.append("action", "uploadHandout");
-        formData.append("title", handoutData.title);
-        formData.append("description", handoutData.description);
-        formData.append("fileUrl", handoutData.fileUrl);
-        formData.append("timestamp", new Date().toISOString());
-        
-        const response = await fetch(GOOGLE_SHEETS_URL, { method: "POST", body: formData });
-        const result = await response.json();
-        return result;
+        const handouts = JSON.parse(localStorage.getItem("hydrofit_handouts") || '[]');
+        const newHandout = {
+            id: Date.now(),
+            ...handoutData,
+            timestamp: new Date().toISOString()
+        };
+        handouts.unshift(newHandout);
+        localStorage.setItem("hydrofit_handouts", JSON.stringify(handouts));
+        return { success: true, message: "Handout uploaded successfully!" };
     } catch (error) {
         console.error("Upload handout error:", error);
         return { success: false, message: "Failed to upload handout" };
     }
 }
 
-// Get all handouts
 async function getHandouts() {
     try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getHandouts`);
-        const result = await response.json();
-        if (result.success) {
-            return result.data;
-        }
-        return [];
+        const handouts = JSON.parse(localStorage.getItem("hydrofit_handouts") || '[]');
+        return handouts;
     } catch (error) {
         console.error("Get handouts error:", error);
         return [];
     }
 }
 
-// Publish announcement
 async function publishAnnouncement(announcementData) {
     try {
-        const formData = new URLSearchParams();
-        formData.append("action", "publishAnnouncement");
-        formData.append("title", announcementData.title);
-        formData.append("content", announcementData.content);
-        formData.append("timestamp", new Date().toISOString());
-        
-        const response = await fetch(GOOGLE_SHEETS_URL, { method: "POST", body: formData });
-        const result = await response.json();
-        return result;
+        const announcements = JSON.parse(localStorage.getItem("hydrofit_announcements") || '[]');
+        const newAnnouncement = {
+            id: Date.now(),
+            ...announcementData,
+            timestamp: new Date().toISOString()
+        };
+        announcements.unshift(newAnnouncement);
+        localStorage.setItem("hydrofit_announcements", JSON.stringify(announcements));
+        return { success: true, message: "Announcement published successfully!" };
     } catch (error) {
         console.error("Publish announcement error:", error);
         return { success: false, message: "Failed to publish announcement" };
     }
 }
 
-// Get all announcements
 async function getAnnouncements() {
     try {
-        const response = await fetch(`${GOOGLE_SHEETS_URL}?action=getAnnouncements`);
-        const result = await response.json();
-        if (result.success) {
-            return result.data;
-        }
-        return [];
+        const announcements = JSON.parse(localStorage.getItem("hydrofit_announcements") || '[]');
+        return announcements;
     } catch (error) {
         console.error("Get announcements error:", error);
         return [];

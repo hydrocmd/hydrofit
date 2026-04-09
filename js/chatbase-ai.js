@@ -1,13 +1,31 @@
 // ========================================
-// CHATBASE AI INTEGRATION (Placeholder)
+// HYDROFIT - AI EXERCISE GUIDE
 // ========================================
 
-// This file will contain AI exercise guide functionality
-// For now, it's a placeholder that will be expanded later
+console.log("HYDROFIT AI Module Loaded");
 
-console.log("Chatbase AI module loaded - Coming soon!");
+const exerciseDatabase = {
+    "push-up": { difficulty: "Beginner", muscles: ["Chest", "Triceps", "Shoulders"], instructions: "Start in plank position, lower body until chest nearly touches floor, push back up." },
+    "squat": { difficulty: "Beginner", muscles: ["Quadriceps", "Hamstrings", "Glutes"], instructions: "Stand with feet shoulder-width apart, lower hips as if sitting back, return to start." },
+    "plank": { difficulty: "Beginner", muscles: ["Core", "Shoulders", "Back"], instructions: "Hold push-up position with body straight, engage core, hold for time." },
+    "lunges": { difficulty: "Beginner", muscles: ["Quadriceps", "Glutes", "Hamstrings"], instructions: "Step forward with one leg, lower hips until both knees bent at 90°, return." },
+    "burpees": { difficulty: "Advanced", muscles: ["Full Body"], instructions: "Drop into squat, kick feet back, do push-up, jump forward, jump up." }
+};
 
-// AI Exercise Guide functions will be added here
-function getAIExerciseRecommendation() {
-    return "AI exercise recommendations coming soon!";
+function getAIExerciseRecommendation(fitnessLevel = "beginner") {
+    const exercises = Object.keys(exerciseDatabase);
+    const filtered = exercises.filter(ex => exerciseDatabase[ex].difficulty.toLowerCase() === fitnessLevel.toLowerCase());
+    const selected = filtered.length > 0 ? filtered[Math.floor(Math.random() * filtered.length)] : exercises[0];
+    return {
+        name: selected,
+        ...exerciseDatabase[selected]
+    };
 }
+
+function getExerciseDetails(exerciseName) {
+    const name = exerciseName.toLowerCase();
+    return exerciseDatabase[name] || null;
+}
+
+window.getAIExerciseRecommendation = getAIExerciseRecommendation;
+window.getExerciseDetails = getExerciseDetails;
