@@ -3,7 +3,7 @@
 // ========================================
 
 // Google Sheets Web App URL (REPLACE WITH YOUR DEPLOYED URL)
-const GOOGLE_SHEETS_URL = "https://script.google.com/macros/s/AKfycbz5ariLI4UptTJ5s7xoqYgW0Gb4_YwccSVRW_AfKZhBaqGvAaXR3tkIPnwOOkHfo9MY9g/exec";
+const GOOGLE_SHEETS_URL = "https://script.google.com/macros/s/AKfycbzjQD2ztAlog7FgoLZDqDCO-8qcPyTpSQ5axxZRXvQVggkihtuwMSAPp7Sxi0MUY7l9xg/exec";
 
 // App Configuration
 const APP_NAME = "HYDROFIT";
